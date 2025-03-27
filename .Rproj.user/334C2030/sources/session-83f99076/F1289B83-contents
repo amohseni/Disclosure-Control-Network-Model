@@ -1,0 +1,983 @@
+###############################################################
+# Simulation Model for Impact of Visibility of Agent Declarations 
+# on Perceptions of Polarization in Social Networks
+###############################################################
+
+# Load required libraries
+library(igraph)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+
+###############################################################
+# PART 1: NETWORK GENERATION AND INITIALIZATION
+###############################################################
+
+#' Generate a network based on specified model
+#' 
+#' @param model_type Type of network model: "ER" (Erdős-Rényi), "WS" (Watts-Strogatz), or "BA" (Barabási-Albert)
+#' @param N Number of nodes
+#' @param p Probability of edge formation (for ER) or rewiring probability (for WS)
+#' @param k Initial neighbor count (for WS) or edges per new node (for BA)
+#' @return An igraph object representing the network
+generate_network <- function(model_type, N, p = 0.1, k = 4) {
+  if (model_type == "ER") {
+    # Erdős-Rényi random graph
+    graph <- erdos.renyi.game(n = N, p = p, directed = FALSE, loops = FALSE)
+  } else if (model_type == "WS") {
+    # Watts-Strogatz small-world graph
+    graph <- sample_smallworld(dim = 1, size = N, nei = k, p = p, loops = FALSE, multiple = FALSE)
+  } else if (model_type == "BA") {
+    # Barabási-Albert scale-free graph
+    graph <- sample_pa(n = N, power = 1, m = k, directed = FALSE, loops = FALSE)
+  } else {
+    stop("Invalid network model type. Choose 'ER', 'WS', or 'BA'.")
+  }
+  
+  # Ensure the graph is connected
+  components <- components(graph)
+  if (components$no > 1) {
+    # If not connected, take the largest component and add some edges to connect others
+    largest_comp <- which.max(components$csize)
+    for (i in 1:N) {
+      if (components$membership[i] != largest_comp) {
+        # Connect to a random node in the largest component
+        target <- sample(which(components$membership == largest_comp), 1)
+        graph <- add_edges(graph, c(i, target))
+      }
+    }
+  }
+  
+  return(graph)
+}
+
+#' Initialize agent type vectors
+#' 
+#' @param N Number of agents
+#' @param L Length of type vector
+#' @param init_type "random" or "polarized"
+#' @param b Bias parameter for polarized initialization
+#' @return A matrix of agent type vectors
+initialize_types <- function(N, L, init_type = "random", b = 0.7) {
+  type_matrix <- matrix(0, nrow = N, ncol = L)
+  
+  if (init_type == "random") {
+    # Random initialization: Each trait is 0 or 1 with equal probability
+    type_matrix <- matrix(sample(c(0, 1), N * L, replace = TRUE), nrow = N, ncol = L)
+  } else if (init_type == "polarized") {
+    # Polarized initialization: Agents are assigned to two groups with opposing biases
+    group1 <- sample(c(TRUE, FALSE), N, replace = TRUE)  # Randomly assign to groups
+    
+    # Set traits for group 1
+    for (i in which(group1)) {
+      type_matrix[i, ] <- rbinom(L, 1, b)  # Bias towards 1
+    }
+    
+    # Set traits for group 2
+    for (i in which(!group1)) {
+      type_matrix[i, ] <- rbinom(L, 1, 1 - b)  # Bias towards 0
+    }
+  } else {
+    stop("Invalid initialization type. Choose 'random' or 'polarized'.")
+  }
+  
+  return(type_matrix)
+}
+
+#' Initialize belief matrices for all agents
+#' 
+#' @param N Number of agents
+#' @param L Length of type vector
+#' @param type_matrix Matrix of agent type vectors
+#' @return A 3D array of belief matrices (N x N x L)
+initialize_beliefs <- function(N, L, type_matrix) {
+  # Initialize belief matrices with ignorance prior (0.5) for all unknown traits
+  belief_array <- array(0.5, dim = c(N, N, L))
+  
+  # The first trait is always public information
+  for (i in 1:N) {
+    for (j in 1:N) {
+      if (i != j) {
+        belief_array[i, j, 1] <- type_matrix[j, 1]
+      }
+    }
+  }
+  
+  # Agents know their own type vectors
+  for (i in 1:N) {
+    belief_array[i, i, ] <- type_matrix[i, ]
+  }
+  
+  return(belief_array)
+}
+
+###############################################################
+# PART 2: SIMILARITY AND UTILITY CALCULATIONS
+###############################################################
+
+#' Compute expected similarity between two agents
+#' 
+#' @param agent_i Index of first agent
+#' @param agent_j Index of second agent
+#' @param beliefs Belief array
+#' @param types Type matrix
+#' @param L Length of type vector
+#' @return Expected similarity value
+compute_expected_similarity <- function(agent_i, agent_j, beliefs, types, L) {
+  similarity <- 0
+  
+  for (l in 1:L) {
+    # Agent i's type for trait l
+    ti_l <- types[agent_i, l]
+    
+    # Agent i's belief about agent j's type for trait l
+    bij_l <- beliefs[agent_i, agent_j, l]
+    
+    # Check if agent i knows agent j's trait l with certainty
+    if (bij_l == 0 || bij_l == 1) {
+      # Known trait
+      if (ti_l == bij_l) {
+        similarity <- similarity + 1
+      } else {
+        similarity <- similarity + 0
+      }
+    } else {
+      # Unknown trait (probabilistic belief)
+      similarity <- similarity + (1 - abs(ti_l - bij_l))
+    }
+  }
+  
+  # Return normalized similarity
+  return(similarity / L)
+}
+
+#' Compute similarity matrix for all agent pairs
+#' 
+#' @param beliefs Belief array
+#' @param types Type matrix
+#' @param N Number of agents
+#' @param L Length of type vector
+#' @return Similarity matrix
+compute_similarity_matrix <- function(beliefs, types, N, L) {
+  similarity_matrix <- matrix(0, nrow = N, ncol = N)
+  
+  for (i in 1:N) {
+    for (j in 1:N) {
+      if (i != j) {
+        similarity_matrix[i, j] <- compute_expected_similarity(i, j, beliefs, types, L)
+      }
+    }
+  }
+  
+  return(similarity_matrix)
+}
+
+#' Calculate the shortest path lengths between all nodes in the network
+#' 
+#' @param graph An igraph object
+#' @return A matrix of shortest path lengths
+calculate_shortest_paths <- function(graph) {
+  N <- vcount(graph)
+  distances <- shortest.paths(graph, algorithm = "dijkstra")
+  return(distances)
+}
+
+#' Calculate utility for a single agent
+#' 
+#' @param agent_id Index of the agent
+#' @param distances Matrix of shortest path lengths
+#' @param beliefs Belief array
+#' @param types Type matrix
+#' @param L Length of type vector
+#' @param delta Influence decay factor
+#' @return Utility value for the agent
+calculate_utility <- function(agent_id, distances, beliefs, types, L, delta) {
+  N <- nrow(distances)
+  utility <- 0
+  
+  for (j in 1:N) {
+    if (j != agent_id) {
+      # Calculate path length between agent_id and j
+      k_ij <- distances[agent_id, j]
+      
+      # Calculate influence weight based on network distance
+      w_ij <- delta^(k_ij - 1)
+      
+      # Compute j's evaluation of agent_id
+      exp_sim <- compute_expected_similarity(j, agent_id, beliefs, types, L)
+      
+      # Add weighted similarity to total utility
+      utility <- utility + w_ij * exp_sim
+    }
+  }
+  
+  return(utility)
+}
+
+#' Calculate utilities for all agents
+#' 
+#' @param distances Matrix of shortest path lengths
+#' @param beliefs Belief array
+#' @param types Type matrix
+#' @param N Number of agents
+#' @param L Length of type vector
+#' @param delta Influence decay factor
+#' @return Vector of utility values for all agents
+calculate_all_utilities <- function(distances, beliefs, types, N, L, delta) {
+  utilities <- numeric(N)
+  
+  for (i in 1:N) {
+    utilities[i] <- calculate_utility(i, distances, beliefs, types, L, delta)
+  }
+  
+  return(utilities)
+}
+
+###############################################################
+# PART 3: DECISION MAKING AND ACTION SELECTION
+###############################################################
+
+#' Determine the best action for an agent
+#' 
+#' @param agent_id Index of the agent
+#' @param target_agents Indices of target agents for disclosure
+#' @param distances Matrix of shortest path lengths
+#' @param beliefs Belief array
+#' @param types Type matrix
+#' @param L Length of type vector
+#' @param delta Influence decay factor
+#' @return The best action for the agent
+decide_best_action <- function(agent_id, target_agents, distances, beliefs, types, L, delta) {
+  # Calculate current utility without additional revelations
+  current_utility <- calculate_utility(agent_id, distances, beliefs, types, L, delta)
+  
+  best_action <- "reveal nothing"
+  best_utility <- current_utility
+  best_actions <- c(best_action)  # Track all actions tied for best
+  
+  # Consider revealing each trait (trait 1 is already public)
+  for (l in 2:L) {
+    # Skip traits already known to all target agents
+    all_known <- TRUE
+    for (j in target_agents) {
+      if (beliefs[j, agent_id, l] != types[agent_id, l]) {
+        all_known <- FALSE
+        break
+      }
+    }
+    
+    if (all_known) next
+    
+    # Simulate belief update if agent reveals trait l
+    new_beliefs <- beliefs
+    for (j in target_agents) {
+      new_beliefs[j, agent_id, l] <- types[agent_id, l]
+    }
+    
+    # Calculate expected utility after revelation
+    new_utility <- calculate_utility(agent_id, distances, new_beliefs, types, L, delta)
+    
+    # Update best action if this is better
+    if (new_utility > best_utility) {
+      best_utility <- new_utility
+      best_actions <- c(paste("reveal trait", l))
+    } else if (new_utility == best_utility) {
+      # If tied with current best, add to list
+      best_actions <- c(best_actions, paste("reveal trait", l))
+    }
+  }
+  
+  # If multiple actions tied for best, select one randomly
+  if (length(best_actions) > 1) {
+    best_action <- sample(best_actions, 1)
+  } else {
+    best_action <- best_actions[1]
+  }
+  
+  return(list(action = best_action, utility = best_utility))
+}
+
+#' Extract trait number from action string
+#' 
+#' @param action Action string
+#' @return Trait number or NA if action is "reveal nothing"
+extract_trait_number <- function(action) {
+  if (action == "reveal nothing") {
+    return(NA)
+  } else {
+    return(as.numeric(strsplit(action, "reveal trait ")[[1]][2]))
+  }
+}
+
+###############################################################
+# PART 4: NETWORK DYNAMICS AND REWIRING
+###############################################################
+
+#' Rewire network connections based on perceived similarity
+#' 
+#' @param graph The network graph
+#' @param agent_id Index of the agent making decisions
+#' @param beliefs Belief array
+#' @param types Type matrix
+#' @param L Length of type vector
+#' @return Updated network graph
+rewire_connections <- function(graph, agent_id, beliefs, types, L) {
+  # Get current neighbors
+  neighbors <- neighbors(graph, agent_id)
+  
+  # If no neighbors, nothing to rewire
+  if (length(neighbors) == 0) {
+    return(graph)
+  }
+  
+  # Calculate similarity with each neighbor
+  neighbor_similarities <- sapply(neighbors, function(j) {
+    compute_expected_similarity(agent_id, j, beliefs, types, L)
+  })
+  
+  # Find worst neighbor
+  worst_neighbor_idx <- which.min(neighbor_similarities)
+  worst_neighbor <- neighbors[worst_neighbor_idx]
+  
+  # Get non-neighbors
+  all_nodes <- 1:vcount(graph)
+  non_neighbors <- setdiff(all_nodes, c(agent_id, neighbors))
+  
+  # If no non-neighbors available, return unchanged graph
+  if (length(non_neighbors) == 0) {
+    return(graph)
+  }
+  
+  # Calculate similarity with each non-neighbor
+  non_neighbor_similarities <- sapply(non_neighbors, function(j) {
+    compute_expected_similarity(agent_id, j, beliefs, types, L)
+  })
+  
+  # Find best non-neighbor
+  best_non_neighbor_idx <- which.max(non_neighbor_similarities)
+  best_non_neighbor <- non_neighbors[best_non_neighbor_idx]
+  
+  # Only rewire if the best non-neighbor has higher similarity than the worst neighbor
+  if (non_neighbor_similarities[best_non_neighbor_idx] > neighbor_similarities[worst_neighbor_idx]) {
+    # Delete edge to worst neighbor
+    graph <- delete_edges(graph, E(graph)[agent_id %--% worst_neighbor])
+    
+    # Add edge to best non-neighbor
+    graph <- add_edges(graph, c(agent_id, best_non_neighbor))
+  }
+  
+  return(graph)
+}
+
+###############################################################
+# PART 5: OUTCOME CALCULATIONS
+###############################################################
+
+#' Calculate similarity-based outcome measures
+#' 
+#' @param graph The network graph
+#' @param similarity_matrix Matrix of similarity values
+#' @param N Number of agents
+#' @return List of similarity outcome measures
+calculate_similarity_outcomes <- function(graph, similarity_matrix, N) {
+  # Calculate average similarity with first-order neighbors
+  neighbor_similarities <- numeric(N)
+  
+  for (i in 1:N) {
+    neighbors_i <- neighbors(graph, i)
+    
+    if (length(neighbors_i) > 0) {
+      neighbor_similarities[i] <- mean(similarity_matrix[i, neighbors_i])
+    } else {
+      neighbor_similarities[i] <- NA
+    }
+  }
+  
+  avg_neighbor_similarity <- mean(neighbor_similarities, na.rm = TRUE)
+  
+  # Calculate average similarity across the entire network
+  all_similarities <- similarity_matrix[lower.tri(similarity_matrix) | upper.tri(similarity_matrix)]
+  avg_all_similarity <- mean(all_similarities)
+  
+  # Calculate similarity gap
+  similarity_gap <- avg_neighbor_similarity - avg_all_similarity
+  
+  return(list(
+    neighbor_similarity = avg_neighbor_similarity,
+    all_similarity = avg_all_similarity,
+    similarity_gap = similarity_gap,
+    similarity_matrix = similarity_matrix
+  ))
+}
+
+#' Calculate polarization metrics
+#' 
+#' @param similarity_matrix Matrix of similarity values
+#' @return List of polarization metrics
+calculate_polarization_metrics <- function(similarity_matrix) {
+  # Flatten the similarity matrix (excluding self-similarities)
+  flat_similarities <- similarity_matrix[lower.tri(similarity_matrix) | upper.tri(similarity_matrix)]
+  
+  # Calculate mean similarity
+  mean_similarity <- mean(flat_similarities)
+  
+  # Calculate variance of similarity beliefs
+  variance_similarity <- var(flat_similarities)
+  
+  # Calculate skewness and kurtosis for bimodality index
+  deviations <- flat_similarities - mean_similarity
+  m3 <- mean(deviations^3) / (sqrt(variance_similarity)^3)  # skewness
+  m4 <- mean(deviations^4) / (variance_similarity^2)  # kurtosis
+  
+  # Calculate bimodality index
+  bimodality_index <- (m3^2 + 1) / m4
+  
+  return(list(
+    variance = variance_similarity,
+    bimodality_index = bimodality_index,
+    skewness = m3,
+    kurtosis = m4
+  ))
+}
+
+#' Calculate network structure metrics
+#' 
+#' @param graph The network graph
+#' @return List of network metrics
+calculate_network_metrics <- function(graph) {
+  # Calculate clustering coefficient
+  clustering_coeffs <- transitivity(graph, type = "local", isolates = "zero")
+  avg_clustering <- mean(clustering_coeffs, na.rm = TRUE)
+  
+  # Calculate average path length
+  distances <- shortest.paths(graph)
+  finite_distances <- distances[is.finite(distances) & distances > 0]
+  avg_path_length <- mean(finite_distances)
+  
+  # Calculate modularity using fast greedy community detection
+  community <- cluster_fast_greedy(graph)
+  modularity_value <- modularity(community)
+  
+  return(list(
+    avg_clustering = avg_clustering,
+    clustering_coeffs = clustering_coeffs,
+    avg_path_length = avg_path_length,
+    modularity = modularity_value,
+    communities = community
+  ))
+}
+
+#' Calculate disclosure metrics
+#' 
+#' @param disclosure_history History of disclosures
+#' @param N Number of agents
+#' @param T Number of rounds
+#' @param L Length of type vector
+#' @return List of disclosure metrics
+calculate_disclosure_metrics <- function(disclosure_history, N, T, L) {
+  # Count total disclosures per agent
+  agent_disclosures <- numeric(N)
+  
+  # Count disclosures per trait
+  trait_disclosures <- numeric(L)
+  
+  # Process disclosure history
+  for (t in 1:T) {
+    for (i in 1:N) {
+      action <- disclosure_history[[t]][i]
+      
+      if (action != "reveal nothing") {
+        agent_disclosures[i] <- agent_disclosures[i] + 1
+        
+        # Extract which trait was revealed
+        trait <- extract_trait_number(action)
+        if (!is.na(trait)) {
+          trait_disclosures[trait] <- trait_disclosures[trait] + 1
+        }
+      }
+    }
+  }
+  
+  # Calculate overall disclosure rate
+  disclosure_rate <- sum(agent_disclosures) / (N * T)
+  
+  # Calculate trait-specific disclosure rates
+  trait_disclosure_rates <- trait_disclosures / (N * T)
+  
+  return(list(
+    disclosure_rate = disclosure_rate,
+    agent_disclosures = agent_disclosures,
+    trait_disclosure_rates = trait_disclosure_rates
+  ))
+}
+
+#' Calculate welfare metrics
+#' 
+#' @param utilities Vector of utility values
+#' @return List of welfare metrics
+calculate_welfare <- function(utilities) {
+  # Calculate total welfare
+  total_welfare <- sum(utilities)
+  
+  # Calculate Gini coefficient for inequality measurement
+  sorted_utilities <- sort(utilities)
+  n <- length(utilities)
+  cumulative_utilities <- cumsum(sorted_utilities)
+  
+  sum_product <- sum((1:n) * sorted_utilities)
+  
+  # Gini coefficient formula
+  coefficient_numerator <- (2 * sum_product) - (n + 1) * sum(sorted_utilities)
+  coefficient_denominator <- n * sum(sorted_utilities)
+  
+  if (coefficient_denominator > 0) {
+    gini_coefficient <- coefficient_numerator / coefficient_denominator
+  } else {
+    gini_coefficient <- 0
+  }
+  
+  return(list(
+    total_welfare = total_welfare,
+    individual_utilities = utilities,
+    gini_coefficient = gini_coefficient
+  ))
+}
+
+###############################################################
+# PART 6: MAIN SIMULATION FUNCTION
+###############################################################
+
+#' Run a single simulation round
+#' 
+#' @param graph The network graph
+#' @param beliefs Belief array
+#' @param types Type matrix
+#' @param params List of simulation parameters
+#' @param disclosure_type Type of disclosure ("selective" or "global")
+#' @param round Current round number
+#' @return List containing updated graph, beliefs, and outcomes
+run_simulation_round <- function(graph, beliefs, types, params, disclosure_type, round) {
+  N <- params$N
+  L <- params$L
+  delta <- params$delta
+  s <- params$s
+  model_version <- params$model_version
+  
+  # Randomize agent order for this round
+  agent_order <- sample(1:N)
+  
+  # Store actions for this round
+  round_actions <- rep("reveal nothing", N)
+  
+  # Calculate shortest paths for utility calculations
+  distances <- shortest.paths(graph)
+  
+  # Process each agent in the randomized order
+  for (idx in 1:N) {
+    i <- agent_order[idx]
+    
+    # For dynamic networks: rewire connections
+    if (model_version == "dynamic") {
+      graph <- rewire_connections(graph, i, beliefs, types, L)
+      
+      # Recalculate distances after rewiring
+      distances <- shortest.paths(graph)
+    }
+    
+    # Determine target agents for disclosure
+    if (disclosure_type == "selective") {
+      # Random sample of s agents, excluding the current agent
+      other_agents <- setdiff(1:N, i)
+      target_agents <- sample(other_agents, min(params$s, N-1))
+    } else {
+      # Global disclosure to all agents except self
+      target_agents <- setdiff(1:N, i)
+    }
+    
+    # Decide best action
+    action_result <- decide_best_action(i, target_agents, distances, beliefs, types, L, delta)
+    best_action <- action_result$action
+    round_actions[i] <- best_action
+    
+    # Update beliefs based on action
+    if (best_action != "reveal nothing") {
+      trait_to_reveal <- extract_trait_number(best_action)
+      if (!is.na(trait_to_reveal)) {
+        for (j in target_agents) {
+          beliefs[j, i, trait_to_reveal] <- types[i, trait_to_reveal]
+        }
+      }
+    }
+  }
+  
+  # Calculate outcome measures for this round
+  similarity_matrix <- compute_similarity_matrix(beliefs, types, N, L)
+  
+  # Store results
+  outcomes <- list(
+    similarity = calculate_similarity_outcomes(graph, similarity_matrix, N),
+    polarization = calculate_polarization_metrics(similarity_matrix),
+    network = calculate_network_metrics(graph),
+    utilities = calculate_all_utilities(distances, beliefs, types, N, L, delta),
+    actions = round_actions
+  )
+  
+  # Add welfare metrics
+  outcomes$welfare <- calculate_welfare(outcomes$utilities)
+  
+  return(list(
+    graph = graph,
+    beliefs = beliefs,
+    outcomes = outcomes,
+    round = round
+  ))
+}
+
+#' Run a complete simulation
+#' 
+#' @param params List of simulation parameters
+#' @return List of simulation results
+run_simulation <- function(params) {
+  # Extract parameters
+  N <- params$N
+  L <- params$L
+  T <- params$T
+  network_type <- params$network_type
+  init_type <- params$init_type
+  model_version <- params$model_version
+  disclosure_type <- params$disclosure_type
+  p <- params$p
+  k <- params$k
+  b <- params$b
+  delta <- params$delta
+  s <- params$s
+  
+  # Initialize network
+  graph <- generate_network(network_type, N, p, k)
+  
+  # Initialize agent type vectors
+  types <- initialize_types(N, L, init_type, b)
+  
+  # Initialize belief matrices
+  beliefs <- initialize_beliefs(N, L, types)
+  
+  # Initialize storage for simulation results
+  results <- list(
+    params = params,
+    rounds = list(),
+    disclosure_history = list()
+  )
+  
+  # Run simulation for T rounds
+  for (t in 1:T) {
+    # Run a single round
+    round_result <- run_simulation_round(graph, beliefs, types, params, disclosure_type, t)
+    
+    # Update graph and beliefs
+    graph <- round_result$graph
+    beliefs <- round_result$beliefs
+    
+    # Store results
+    results$rounds[[t]] <- round_result$outcomes
+    results$disclosure_history[[t]] <- round_result$outcomes$actions
+  }
+  
+  # Calculate overall disclosure metrics
+  results$disclosure_metrics <- calculate_disclosure_metrics(
+    results$disclosure_history, N, T, L)
+  
+  # Store final network state
+  results$final_network <- graph
+  results$final_beliefs <- beliefs
+  
+  return(results)
+}
+
+#' Process simulation results for analysis and visualization
+#' 
+#' @param results List of simulation results
+#' @return List of processed data frames for analysis
+process_simulation_results <- function(results) {
+  T <- length(results$rounds)
+  
+  # Extract time series data
+  rounds_data <- data.frame(
+    round = 1:T,
+    neighbor_similarity = sapply(1:T, function(t) results$rounds[[t]]$similarity$neighbor_similarity),
+    all_similarity = sapply(1:T, function(t) results$rounds[[t]]$similarity$all_similarity),
+    similarity_gap = sapply(1:T, function(t) results$rounds[[t]]$similarity$similarity_gap),
+    variance = sapply(1:T, function(t) results$rounds[[t]]$polarization$variance),
+    bimodality = sapply(1:T, function(t) results$rounds[[t]]$polarization$bimodality_index),
+    clustering = sapply(1:T, function(t) results$rounds[[t]]$network$avg_clustering),
+    path_length = sapply(1:T, function(t) results$rounds[[t]]$network$avg_path_length),
+    modularity = sapply(1:T, function(t) results$rounds[[t]]$network$modularity),
+    total_welfare = sapply(1:T, function(t) results$rounds[[t]]$welfare$total_welfare),
+    gini = sapply(1:T, function(t) results$rounds[[t]]$welfare$gini_coefficient)
+  )
+  
+  # Process disclosure data
+  disclosure_data <- data.frame(
+    agent = 1:results$params$N,
+    disclosures = results$disclosure_metrics$agent_disclosures
+  )
+  
+  trait_disclosure_data <- data.frame(
+    trait = 1:results$params$L,
+    disclosure_rate = results$disclosure_metrics$trait_disclosure_rates
+  )
+  
+  # Return processed data
+  return(list(
+    time_series = rounds_data,
+    agent_disclosures = disclosure_data,
+    trait_disclosures = trait_disclosure_data,
+    params = results$params
+  ))
+}
+
+###############################################################
+# PART 7: VISUALIZATION FUNCTIONS
+###############################################################
+
+#' Create time series plots of key metrics
+#' 
+#' @param processed_results Processed simulation results
+#' @return List of ggplot objects
+create_time_series_plots <- function(processed_results) {
+  df <- processed_results$time_series
+  
+  # Similarity plot
+  similarity_plot <- ggplot(df, aes(x = round)) +
+    geom_line(aes(y = neighbor_similarity, color = "Neighbor Similarity"), size = 1) +
+    geom_line(aes(y = all_similarity, color = "All Similarity"), size = 1) +
+    geom_line(aes(y = similarity_gap, color = "Similarity Gap"), size = 1, linetype = "dashed") +
+    labs(title = "Similarity Measures Over Time",
+         x = "Round",
+         y = "Similarity",
+         color = "Measure") +
+    theme_minimal() +
+    scale_color_brewer(palette = "Set1")
+  
+  # Polarization plot
+  polarization_plot <- ggplot(df, aes(x = round)) +
+    geom_line(aes(y = variance, color = "Variance"), size = 1) +
+    geom_line(aes(y = bimodality, color = "Bimodality"), size = 1) +
+    labs(title = "Polarization Measures Over Time",
+         x = "Round",
+         y = "Value",
+         color = "Measure") +
+    theme_minimal() +
+    scale_color_brewer(palette = "Set2")
+  
+  # Network metrics plot
+  network_plot <- ggplot(df, aes(x = round)) +
+    geom_line(aes(y = clustering, color = "Clustering"), size = 1) +
+    geom_line(aes(y = modularity, color = "Modularity"), size = 1) +
+    labs(title = "Network Metrics Over Time",
+         x = "Round",
+         y = "Value",
+         color = "Measure") +
+    theme_minimal() +
+    scale_color_brewer(palette = "Set3")
+  
+  # Welfare plot
+  welfare_plot <- ggplot(df, aes(x = round)) +
+    geom_line(aes(y = total_welfare, color = "Total Welfare"), size = 1) +
+    geom_line(aes(y = gini * 100, color = "Gini Coefficient"), size = 1) +
+    labs(title = "Welfare Measures Over Time",
+         x = "Round",
+         y = "Value",
+         color = "Measure") +
+    theme_minimal() +
+    scale_color_brewer(palette = "Dark2") +
+    scale_y_continuous(sec.axis = sec_axis(~./100, name = "Gini Coefficient"))
+  
+  return(list(
+    similarity = similarity_plot,
+    polarization = polarization_plot,
+    network = network_plot,
+    welfare = welfare_plot
+  ))
+}
+
+#' Visualize the network with node colors based on similarity
+#' 
+#' @param graph The network graph
+#' @param similarity_matrix Matrix of similarity values
+#' @return ggplot object of the network
+visualize_network <- function(graph, similarity_matrix) {
+  # Calculate average similarity for each node
+  n <- vcount(graph)
+  avg_similarities <- rowMeans(similarity_matrix, na.rm = TRUE)
+  
+  # Normalize for color mapping
+  node_colors <- (avg_similarities - min(avg_similarities)) / 
+    (max(avg_similarities) - min(avg_similarities))
+  
+  # Get layout
+  layout <- layout_with_fr(graph)
+  
+  # Convert to data frames for ggplot
+  nodes <- data.frame(
+    id = 1:n,
+    x = layout[,1],
+    y = layout[,2],
+    similarity = avg_similarities
+  )
+  
+  edges <- data.frame(
+    from = ends(graph, E(graph))[,1],
+    to = ends(graph, E(graph))[,2]
+  )
+  
+  edges_for_plot <- data.frame(
+    x = layout[edges$from, 1],
+    y = layout[edges$from, 2],
+    xend = layout[edges$to, 1],
+    yend = layout[edges$to, 2]
+  )
+  
+  # Create network plot
+  plot <- ggplot() +
+    geom_segment(data = edges_for_plot, aes(x = x, y = y, xend = xend, yend = yend),
+                 alpha = 0.5) +
+    geom_point(data = nodes, aes(x = x, y = y, fill = similarity), 
+               shape = 21, size = 5, color = "black") +
+    scale_fill_gradient(low = "blue", high = "red") +
+    labs(title = "Network Visualization", fill = "Avg. Similarity") +
+    theme_void() +
+    theme(legend.position = "right")
+  
+  return(plot)
+}
+
+###############################################################
+# PART 8: PARAMETER SWEEP FUNCTIONS
+###############################################################
+
+#' Run multiple simulations with different parameter combinations
+#' 
+#' @param base_params Base parameter list
+#' @param param_grid List of parameter grids to sweep
+#' @param num_runs Number of runs per parameter combination
+#' @return Data frame of aggregated results
+run_parameter_sweep <- function(base_params, param_grid, num_runs = 3) {
+  # Create all combinations of parameters
+  param_combinations <- expand.grid(param_grid)
+  
+  # Initialize results storage
+  num_combinations <- nrow(param_combinations)
+  results <- list()
+  
+  # Run simulations for each parameter combination
+  for (i in 1:num_combinations) {
+    cat(sprintf("Processing parameter combination %d of %d\n", i, num_combinations))
+    
+    # Create current parameter set
+    current_params <- base_params
+    for (param_name in names(param_combinations)) {
+      current_params[[param_name]] <- param_combinations[i, param_name]
+    }
+    
+    # Run multiple simulations with these parameters
+    combination_results <- list()
+    for (run in 1:num_runs) {
+      cat(sprintf("  Run %d of %d\n", run, num_runs))
+      sim_result <- run_simulation(current_params)
+      processed <- process_simulation_results(sim_result)
+      combination_results[[run]] <- processed
+    }
+    
+    # Store aggregated results
+    results[[i]] <- list(
+      params = current_params,
+      runs = combination_results
+    )
+  }
+  
+  # Process and flatten results for analysis
+  flat_results <- process_sweep_results(results, param_combinations)
+  
+  return(flat_results)
+}
+
+#' Process sweep results into a flat data frame
+#' 
+#' @param results List of simulation results
+#' @param param_combinations Data frame of parameter combinations
+#' @return Data frame with aggregated metrics
+process_sweep_results <- function(results, param_combinations) {
+  num_combinations <- nrow(param_combinations)
+  num_runs <- length(results[[1]]$runs)
+  
+  # Initialize data frame for storing results
+  result_rows <- list()
+  
+  for (i in 1:num_combinations) {
+    for (run in 1:num_runs) {
+      # Get final round metrics
+      final_round <- results[[i]]$runs[[run]]$time_series[nrow(results[[i]]$runs[[run]]$time_series), ]
+      
+      # Create row with parameters and final metrics
+      row <- c(
+        as.list(param_combinations[i, ]),
+        run = run,
+        final_neighbor_similarity = final_round$neighbor_similarity,
+        final_all_similarity = final_round$all_similarity,
+        final_similarity_gap = final_round$similarity_gap,
+        final_variance = final_round$variance,
+        final_bimodality = final_round$bimodality,
+        final_clustering = final_round$clustering,
+        final_path_length = final_round$path_length,
+        final_modularity = final_round$modularity,
+        final_welfare = final_round$total_welfare,
+        final_gini = final_round$gini,
+        disclosure_rate = results[[i]]$runs[[run]]$params$disclosure_metrics$disclosure_rate
+      )
+      
+      result_rows[[length(result_rows) + 1]] <- row
+    }
+  }
+  
+  # Convert list to data frame
+  results_df <- do.call(rbind.data.frame, result_rows)
+  
+  return(results_df)
+}
+
+###############################################################
+# PART 9: SAMPLE USAGE
+###############################################################
+
+# Example parameter set
+example_params <- list(
+  N = 50,                   # Number of agents
+  L = 5,                    # Length of type vector
+  T = 20,                   # Number of rounds
+  network_type = "WS",      # Network type: "ER", "WS", or "BA"
+  p = 0.1,                  # Probability parameter for network generation
+  k = 4,                    # Degree parameter for network generation
+  init_type = "random",     # Type vector initialization: "random" or "polarized"
+  b = 0.7,                  # Bias parameter for polarized initialization
+  delta = 0.5,              # Influence decay factor
+  s = 10,                   # Size of target subset for selective disclosure
+  model_version = "static", # Network version: "static" or "dynamic"
+  disclosure_type = "selective" # Disclosure type: "selective" or "global"
+)
+
+# Run a single simulation (uncomment to run)
+sim_results <- run_simulation(example_params)
+processed_results <- process_simulation_results(sim_results)
+plots <- create_time_series_plots(processed_results)
+
+# Example parameter sweep (uncomment to run)
+param_grid <- list(
+  disclosure_type = c("selective", "global"),
+  model_version = c("static", "dynamic")
+)
+sweep_results <- run_parameter_sweep(example_params, param_grid, num_runs = 2)
+lapply(sweep_results, function(x) if (is.numeric(x)) round(x, 2) else x)
+
+###############################################################
+# END OF CODE
+###############################################################
