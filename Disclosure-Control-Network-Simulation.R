@@ -1,6 +1,5 @@
 ###############################################################
-# Simulation Model for Impact of Visibility of Agent Declarations 
-# on Perceptions of Polarization in Social Networks
+# Simulation Model: Selective Disclosure & Perceptions of Polarization
 ###############################################################
 
 # Load required libraries
@@ -748,9 +747,9 @@ create_time_series_plots <- function(processed_results) {
   
   # Similarity plot
   similarity_plot <- ggplot(df, aes(x = round)) +
-    geom_line(aes(y = neighbor_similarity, color = "Neighbor Similarity"), size = 1) +
-    geom_line(aes(y = all_similarity, color = "All Similarity"), size = 1) +
-    geom_line(aes(y = similarity_gap, color = "Similarity Gap"), size = 1, linetype = "dashed") +
+    geom_line(aes(y = neighbor_similarity, color = "Neighbor Similarity"), linewidth = 1) +
+    geom_line(aes(y = all_similarity, color = "All Similarity"), linewidth = 1) +
+    geom_line(aes(y = similarity_gap, color = "Similarity Gap"), linewidth = 1, linetype = "dashed") +
     labs(title = "Similarity Measures Over Time",
          x = "Round",
          y = "Similarity",
@@ -760,8 +759,8 @@ create_time_series_plots <- function(processed_results) {
   
   # Polarization plot
   polarization_plot <- ggplot(df, aes(x = round)) +
-    geom_line(aes(y = variance, color = "Variance"), size = 1) +
-    geom_line(aes(y = bimodality, color = "Bimodality"), size = 1) +
+    geom_line(aes(y = variance, color = "Variance"), linewidth = 1) +
+    geom_line(aes(y = bimodality, color = "Bimodality"), linewidth = 1) +
     labs(title = "Polarization Measures Over Time",
          x = "Round",
          y = "Value",
@@ -771,8 +770,8 @@ create_time_series_plots <- function(processed_results) {
   
   # Network metrics plot
   network_plot <- ggplot(df, aes(x = round)) +
-    geom_line(aes(y = clustering, color = "Clustering"), size = 1) +
-    geom_line(aes(y = modularity, color = "Modularity"), size = 1) +
+    geom_line(aes(y = clustering, color = "Clustering"), linewidth = 1) +
+    geom_line(aes(y = modularity, color = "Modularity"), linewidth = 1) +
     labs(title = "Network Metrics Over Time",
          x = "Round",
          y = "Value",
@@ -782,8 +781,8 @@ create_time_series_plots <- function(processed_results) {
   
   # Welfare plot
   welfare_plot <- ggplot(df, aes(x = round)) +
-    geom_line(aes(y = mean_welfare, color = "Total Welfare"), size = 1) +
-    geom_line(aes(y = gini * 100, color = "Gini Coefficient"), size = 1) +
+    geom_line(aes(y = mean_welfare, color = "Total Welfare"), linewidth = 1) +
+    geom_line(aes(y = gini * 100, color = "Gini Coefficient"), linewidth = 1) +
     labs(title = "Welfare Measures Over Time",
          x = "Round",
          y = "Value",
@@ -965,18 +964,18 @@ example_params <- list(
   disclosure_type = "selective" # Disclosure type: "selective" or "global"
 )
 
-# Run a single simulation (uncomment to run)
-sim_results <- run_simulation(example_params)
-processed_results <- process_simulation_results(sim_results)
-plots <- create_time_series_plots(processed_results)
-
-# Example parameter sweep (uncomment to run)
-param_grid <- list(
-  disclosure_type = c("selective", "global"),
-  model_version = c("static", "dynamic")
-)
-sweep_results <- run_parameter_sweep(example_params, param_grid, num_runs = 2)
-lapply(sweep_results, function(x) if (is.numeric(x)) round(x, 2) else x)
+# # Run a single simulation (uncomment to run)
+# sim_results <- run_simulation(example_params)
+# processed_results <- process_simulation_results(sim_results)
+# plots <- create_time_series_plots(processed_results)
+# 
+# # Example parameter sweep (uncomment to run)
+# param_grid <- list(
+#   disclosure_type = c("selective", "global"),
+#   model_version = c("static", "dynamic")
+# )
+# sweep_results <- run_parameter_sweep(example_params, param_grid, num_runs = 2)
+# lapply(sweep_results, function(x) if (is.numeric(x)) round(x, 2) else x)
 
 ###############################################################
 # END OF CODE

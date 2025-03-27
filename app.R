@@ -1,5 +1,5 @@
 ###############################################################
-# Shiny App for Selective Self-Disclosure Network Model
+# Shiny App: Selective Disclosure & Perceptions of Polarization
 ###############################################################
 
 # Install required libraries
