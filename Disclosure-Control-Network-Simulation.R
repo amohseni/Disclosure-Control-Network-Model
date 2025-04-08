@@ -142,7 +142,7 @@ initialize_beliefs <- function(N, L, type_matrix) {
 #' @param N Number of agents
 #' @param L Length of type vector
 #' @return List of similarity outcome measures
-calculate_similarity_outcomes <- function(graph, beliefs, types, N, L) {
+compute_similarity_outcomes <- function(graph, beliefs, types, N, L) {
   # Initialize similarity matrices
   perceived_similarity_matrix <- matrix(0, nrow = N, ncol = N)
   revealed_similarity_matrix <- matrix(0, nrow = N, ncol = N)
@@ -727,7 +727,7 @@ run_simulation_round <- function(graph,
   }
   
   # Calculate outcome measures for this round
-  similarity_matrix <- compute_similarity_matrix(beliefs, types, N, L)
+  similarity_matrix <- compute_similarity_outcomes(beliefs, types, N, L)
   
   # Store results
   outcomes <- list(

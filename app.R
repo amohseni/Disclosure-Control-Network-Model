@@ -16,7 +16,8 @@
 #     "DT",
 #     "shinyjs",
 #     "future",
-#     "promises"
+#     "promises",
+#     "shinyBS"
 #   )
 # )
 
@@ -31,6 +32,8 @@ library(tidyr)
 library(plotly)
 library(DT)
 library(shinyjs)
+library(shinyBS)
+
 library(future)
 library(promises)
 
@@ -183,7 +186,7 @@ ui <- dashboardPage(
         value = 0.5,
         step = 0.05
       ),
-      helpText("Determines how rapidly influence decays with network distance."),
+      helpText("Determines how rapidly influence decays with network distance.")
     ),
     # Right column: Network and simulation parameters (excluding decay factor and run button)
     column(
@@ -245,7 +248,7 @@ ui <- dashboardPage(
           value = 3,
           step = 1
         ),
-        helpText("Number of edges to attach from each new node in a BA network."),
+        helpText("Number of edges to attach from each new node in a BA network.")
       ),
       
       selectInput(
@@ -573,6 +576,7 @@ server <- function(input, output, session) {
     
     # Get parameters
     params <- get_params()
+    print(params) 
     
     # Initialize progress bar
     updateProgressBar(session, "progress", value = 0)
@@ -638,38 +642,6 @@ server <- function(input, output, session) {
     })
   })
   
-  if (plot_type == "Similarity") {
-    p <- ggplot(df, aes(x = round)) +
-      geom_line(aes(y = perceived_neighbor_similarity, color = "Perceived (Neighbor)"),
-                size = 1) +
-      geom_line(aes(y = perceived_all_similarity, color = "Perceived (Global)"),
-                size = 1) +
-      geom_line(aes(y = objective_neighbor_similarity, color = "Objective (Neighbor)"),
-                size = 1) +
-      geom_line(aes(y = objective_all_similarity, color = "Objective (Global)"),
-                size = 1) +
-      geom_line(
-        aes(y = revealed_neighbor_similarity, color = "Revealed (Neighbor)"),
-        size = 1,
-        linetype = "dashed"
-      ) +
-      geom_line(
-        aes(y = revealed_all_similarity, color = "Revealed (Global)"),
-        size = 1,
-        linetype = "dashed"
-      ) +
-      labs(
-        title = "Similarity Measures Over Time",
-        x = "Round",
-        y = "Similarity",
-        color = "Measure"
-      ) +
-      theme_minimal() +
-      scale_color_brewer(palette = "Paired")
-  }
-  
-  
-  
   # Generate time series plots
   create_plot <- function() {
     req(values$processed_results)
@@ -705,7 +677,6 @@ server <- function(input, output, session) {
         ) +
         theme_minimal() +
         scale_color_brewer(palette = "Paired")
-    }
     
   } else if (plot_type == "Polarization") {
     p <- ggplot(df, aes(x = round)) +
