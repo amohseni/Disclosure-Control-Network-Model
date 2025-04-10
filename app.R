@@ -154,6 +154,13 @@ ui <- dashboardPage(
         icon = icon("play"),
         style = "width: 80%; box-sizing: border-box; color: #fff; background-color: #337ab7; width: 80%; margin: auto; display: block;"
       ),
+      br(),
+      div(style = "width: 80%; margin: 5px auto;", # 10px top/bottom, auto left/right
+          progressBar(
+            id = "progress",
+            value = 0,
+            display_pct = TRUE
+          )), 
       sliderInput(
         "N",
         "Number of Agents (N):",
@@ -302,26 +309,6 @@ ui <- dashboardPage(
     includeCSS("www/style.css"),
     tabItems(
       tabItem(tabName = "simulation", fluidRow(
-        box(
-          title = "Simulation Control",
-          width = 5,
-          actionButton(
-            "run2",
-            "Run Simulation",
-            icon = icon("play"),
-            style = "color: #fff; background-color: #337ab7; width: 80%; margin: auto; display: block;"
-          ),
-          hr(),
-          h4("Current Parameters:"),
-          verbatimTextOutput("current_params"),
-          hr(),
-          h4("Simulation Progress:"),
-          progressBar(
-            id = "progress",
-            value = 0,
-            display_pct = TRUE
-          )
-        ),
         tabBox(
           title = "Simulation Status",
           width = 7,
@@ -430,13 +417,13 @@ ui <- dashboardPage(
         title = "About the Model",
         width = 12,
         h3(
-          "Selective Disclosure & Perceived Polarization on Social Networks"
-        ),
-        p(
-          "This model simulates how changes in control over self-disclosure affects perceived similarity and polarization in social networks."
+          "Selective Disclosure <br> & Perceived Polarization <br> on Social Networks"
         ),
         p(
           "Social media platforms host public forums where individuals make declarations at an unprecedented scale, often with little control over their audience. In this paper, we develop a formal model in which agents, each endowed with a binary type vector, strive to be perceived as similar to others. Agents selectively disclose partial information about their type vectors---either to the entire network or to a chosen subset---with evaluations weighted by social proximity. We explore how these disclosure strategies influence perceived similarity among immediate contacts and across the broader network, and how they may contribute to perceptions regarding polarization. We compare the effect in static networks with those in dynamic networks, where agents form or sever ties based on perceived similarity."
+        ),        
+        p(
+          "This model simulates how changes in control over self-disclosure affects perceived similarity and polarization in social networks."
         )
       ))
     )
@@ -540,6 +527,55 @@ server <- function(input, output, session) {
     if (params$disclosure_type == "selective") {
       cat("Selective Disclore Size (s): ", params$s, "\n")
     }
+  })
+  
+  # Update summary statistics display
+  output$summary_stats <- renderTable({
+    req(values$processed_results)
+    
+    final_round <- nrow(values$processed_results$time_series)
+    last_metrics <- values$processed_results$time_series[final_round, ]
+    
+    disclosure_rate <- values$processed_results$params$disclosure_metrics$disclosure_rate
+    if (length(disclosure_rate) == 0)
+      disclosure_rate <- NA
+    
+    data.frame(
+      Metric = c(
+        "Perceived Similarity (Neighbor)",
+        "Perceived Similarity (Global)",
+        "Perceived Similarity Gap",
+        "Objective Similarity (Neighbor)",
+        "Objective Similarity (Global)",
+        "Objective Similarity Gap",
+        "Revealed Similarity (Neighbor)",
+        "Revealed Similarity (Global)",
+        "Revealed Similarity Gap",
+        "Polarization (Variance)",
+        "Clustering Coefficient",
+        "Modularity",
+        "Mean Welfare",
+        "Gini Coefficient",
+        "Disclosure Rate"
+      ),
+      Value = c(
+        last_metrics$perceived_neighbor_similarity,
+        last_metrics$perceived_all_similarity,
+        last_metrics$perceived_similarity_gap,
+        last_metrics$objective_neighbor_similarity,
+        last_metrics$objective_all_similarity,
+        last_metrics$objective_similarity_gap,
+        last_metrics$revealed_neighbor_similarity,
+        last_metrics$revealed_all_similarity,
+        last_metrics$revealed_similarity_gap,
+        last_metrics$variance,
+        last_metrics$clustering,
+        last_metrics$modularity,
+        last_metrics$mean_welfare,
+        last_metrics$gini,
+        disclosure_rate
+      )
+    )
   })
   
   # Log messages
@@ -677,403 +713,403 @@ server <- function(input, output, session) {
         ) +
         theme_minimal() +
         scale_color_brewer(palette = "Paired")
+      
+    } else if (plot_type == "Polarization") {
+      p <- ggplot(df, aes(x = round)) +
+        geom_line(aes(y = variance, color = "Variance"), size = 1) +
+        geom_line(aes(y = bimodality, color = "Bimodality"), size = 1) +
+        labs(
+          title = "Polarization Measures Over Time",
+          x = "Round",
+          y = "Value",
+          color = "Measure"
+        ) +
+        theme_minimal() +
+        scale_color_brewer(palette = "Set2")
+      
+    } else if (plot_type == "Network Metrics") {
+      p <- ggplot(df, aes(x = round)) +
+        geom_line(aes(y = clustering, color = "Clustering"), size = 1) +
+        geom_line(aes(y = modularity, color = "Modularity"), size = 1) +
+        labs(
+          title = "Network Metrics Over Time",
+          x = "Round",
+          y = "Value",
+          color = "Measure"
+        ) +
+        theme_minimal() +
+        scale_color_brewer(palette = "Set3")
+      
+    } else if (plot_type == "Welfare") {
+      p <- ggplot(df, aes(x = round)) +
+        geom_line(aes(y = mean_welfare, color = "Total Welfare"), size = 1) +
+        geom_line(aes(y = gini * 100, color = "Gini Coefficient"), size = 1) +
+        labs(
+          title = "Welfare Measures Over Time",
+          x = "Round",
+          y = "Value",
+          color = "Measure"
+        ) +
+        theme_minimal() +
+        scale_color_brewer(palette = "Dark2") +
+        scale_y_continuous(sec.axis = sec_axis(~ . / 100, name = "Gini Coefficient"))
+    }
     
-  } else if (plot_type == "Polarization") {
-    p <- ggplot(df, aes(x = round)) +
-      geom_line(aes(y = variance, color = "Variance"), size = 1) +
-      geom_line(aes(y = bimodality, color = "Bimodality"), size = 1) +
-      labs(
-        title = "Polarization Measures Over Time",
-        x = "Round",
-        y = "Value",
-        color = "Measure"
-      ) +
-      theme_minimal() +
-      scale_color_brewer(palette = "Set2")
-    
-  } else if (plot_type == "Network Metrics") {
-    p <- ggplot(df, aes(x = round)) +
-      geom_line(aes(y = clustering, color = "Clustering"), size = 1) +
-      geom_line(aes(y = modularity, color = "Modularity"), size = 1) +
-      labs(
-        title = "Network Metrics Over Time",
-        x = "Round",
-        y = "Value",
-        color = "Measure"
-      ) +
-      theme_minimal() +
-      scale_color_brewer(palette = "Set3")
-    
-  } else if (plot_type == "Welfare") {
-    p <- ggplot(df, aes(x = round)) +
-      geom_line(aes(y = mean_welfare, color = "Total Welfare"), size = 1) +
-      geom_line(aes(y = gini * 100, color = "Gini Coefficient"), size = 1) +
-      labs(
-        title = "Welfare Measures Over Time",
-        x = "Round",
-        y = "Value",
-        color = "Measure"
-      ) +
-      theme_minimal() +
-      scale_color_brewer(palette = "Dark2") +
-      scale_y_continuous(sec.axis = sec_axis(~ . / 100, name = "Gini Coefficient"))
+    return(p)
   }
   
-  return(p)
-}
-
-# Regular plot output
-output$time_series_plot <- renderPlot({
-  create_plot()
-})
-
-# Plotly interactive plot
-output$time_series_plotly <- renderPlotly({
-  ggplotly(create_plot())
-})
-
-# Agent disclosure plot
-output$agent_disclosure_plot <- renderPlot({
-  req(values$processed_results)
-  
-  ggplot(values$processed_results$agent_disclosures,
-         aes(x = agent, y = disclosures)) +
-    geom_bar(stat = "identity", fill = "steelblue") +
-    labs(title = "Number of Disclosures by Agent", x = "Agent ID", y = "Number of Disclosures") +
-    theme_minimal()
-})
-
-# Agent disclosure table
-output$agent_disclosure_table <- renderDataTable({
-  req(values$processed_results)
-  values$processed_results$agent_disclosures
-})
-
-# Trait disclosure plot
-output$trait_disclosure_plot <- renderPlot({
-  req(values$processed_results)
-  
-  ggplot(values$processed_results$trait_disclosures,
-         aes(x = trait, y = disclosure_rate)) +
-    geom_bar(stat = "identity", fill = "darkgreen") +
-    labs(title = "Disclosure Rate by Trait", x = "Trait Number", y = "Disclosure Rate") +
-    theme_minimal() +
-    scale_x_continuous(breaks = 1:values$processed_results$params$L)
-})
-
-# Trait disclosure table
-output$trait_disclosure_table <- renderDataTable({
-  req(values$processed_results)
-  values$processed_results$trait_disclosures
-})
-
-# Raw results table
-output$results_table <- renderDataTable({
-  req(values$processed_results)
-  values$processed_results$time_series
-})
-
-# Network visualization
-output$network_plot <- renderPlot({
-  req(values$sim_results, input$network_round)
-  
-  round_idx <- as.numeric(input$network_round)
-  graph <- values$network_states[[round_idx]]
-  
-  # Get similarity matrix for the selected round
-  # In a real implementation, you would use the actual similarity matrix for each round
-  similarity_matrix <- matrix(0, nrow = vcount(graph), ncol = vcount(graph))
-  
-  if (round_idx == values$processed_results$params$T) {
-    # Use final similarity matrix for last round
-    similarity_matrix <- values$sim_results$rounds[[round_idx]]$similarity$similarity_matrix
-  } else {
-    # For earlier rounds, we would need to store these (using final for demo)
-    similarity_matrix <- values$sim_results$rounds[[round_idx]]$similarity$similarity_matrix
-  }
-  
-  # Color nodes based on selected attribute
-  node_color_values <- numeric(vcount(graph))
-  
-  if (input$color_by == "Average Similarity") {
-    node_color_values <- rowMeans(similarity_matrix, na.rm = TRUE)
-  } else if (input$color_by == "Type Disclosure Rate") {
-    node_color_values <- values$processed_results$agent_disclosures$disclosures
-  } else if (input$color_by == "Degree") {
-    node_color_values <- degree(graph)
-  }
-  
-  # Normalize values for color mapping
-  if (length(node_color_values) > 0 &&
-      diff(range(node_color_values)) > 0) {
-    node_colors <- (node_color_values - min(node_color_values)) /
-      (max(node_color_values) - min(node_color_values))
-  } else {
-    node_colors <- rep(0.5, vcount(graph))
-  }
-  
-  # Get layout
-  layout <- layout_with_fr(graph)
-  
-  # Set node size
-  node_size <- input$node_size
-  
-  # Plot network
-  if (input$show_labels) {
-    plot(
-      graph,
-      layout = layout,
-      vertex.color = heat.colors(100)[round(node_colors * 99) + 1],
-      vertex.size = node_size * 3,
-      vertex.label = 1:vcount(graph),
-      vertex.label.cex = 0.8,
-      edge.arrow.size = 0.5,
-      main = paste("Network at Round", round_idx)
-    )
-  } else {
-    plot(
-      graph,
-      layout = layout,
-      vertex.color = heat.colors(100)[round(node_colors * 99) + 1],
-      vertex.size = node_size * 3,
-      vertex.label = NA,
-      edge.arrow.size = 0.5,
-      main = paste("Network at Round", round_idx)
-    )
-  }
-  
-  # Add legend for color scale
-  legend_title <- switch(
-    input$color_by,
-    "Average Similarity" = "Avg. Similarity",
-    "Type Disclosure Rate" = "Disclosures",
-    "Degree" = "Degree"
-  )
-  
-  legend_values <- seq(min(node_color_values),
-                       max(node_color_values),
-                       length.out = 5)
-  legend_colors <- heat.colors(5)
-  
-  legend(
-    "topright",
-    legend = round(legend_values, 2),
-    fill = legend_colors,
-    title = legend_title
-  )
-})
-
-# Parameter sweep functionality
-observeEvent(input$run_sweep, {
-  req(!values$is_running)
-  
-  values$is_running <- TRUE
-  add_log("Starting parameter sweep...")
-  
-  # Get base parameters
-  base_params <- get_params()
-  
-  # Create parameter grid based on selected parameters to sweep
-  param_grid <- list()
-  
-  if ("network_type" %in% input$sweep_params) {
-    param_grid$network_type <- c("ER", "WS", "BA")
-  }
-  
-  if ("model_version" %in% input$sweep_params) {
-    param_grid$model_version <- c("static", "dynamic")
-  }
-  
-  if ("disclosure_type" %in% input$sweep_params) {
-    param_grid$disclosure_type <- c("selective", "global")
-  }
-  
-  if ("delta" %in% input$sweep_params) {
-    param_grid$delta <- c(0.2, 0.5, 0.8)
-  }
-  
-  if ("b" %in% input$sweep_params) {
-    param_grid$b <- c(0.6, 0.75, 0.9)
-  }
-  
-  # Check if any parameters selected
-  if (length(param_grid) == 0) {
-    add_log("Error: No parameters selected for sweep")
-    values$is_running <- FALSE
-    return()
-  }
-  
-  # Set up progress updates
-  updateProgressBar(session, "progress", value = 0)
-  
-  # Run parameter sweep in background
-  future::plan(future::multisession)
-  
-  future_promise <- future::future({
-    # Reduce number of rounds for sweep to make it faster
-    base_params$T <- min(base_params$T, 10)
-    
-    # Run sweep
-    sweep_results <- run_parameter_sweep(base_params, param_grid, num_runs = input$num_runs)
-    return(sweep_results)
+  # Regular plot output
+  output$time_series_plot <- renderPlot({
+    create_plot()
   })
   
-  # Handle the promise
-  promises::then(
-    future_promise,
-    onFulfilled = function(result) {
-      values$sweep_results <- result
-      add_log("Parameter sweep completed successfully!")
-      values$is_running <- FALSE
-      updateProgressBar(session, "progress", value = 100)
-    },
-    onRejected = function(error) {
-      add_log(paste("Error in parameter sweep:", error$message))
-      values$is_running <- FALSE
-      updateProgressBar(session, "progress", value = 0)
-    }
-  )
+  # Plotly interactive plot
+  output$time_series_plotly <- renderPlotly({
+    ggplotly(create_plot())
+  })
   
-  # Update progress periodically
-  observe({
-    invalidateLater(500)
-    if (values$is_running) {
-      if (future::resolved(future_promise)) {
+  # Agent disclosure plot
+  output$agent_disclosure_plot <- renderPlot({
+    req(values$processed_results)
+    
+    ggplot(values$processed_results$agent_disclosures,
+           aes(x = agent, y = disclosures)) +
+      geom_bar(stat = "identity", fill = "steelblue") +
+      labs(title = "Number of Disclosures by Agent", x = "Agent ID", y = "Number of Disclosures") +
+      theme_minimal()
+  })
+  
+  # Agent disclosure table
+  output$agent_disclosure_table <- renderDataTable({
+    req(values$processed_results)
+    values$processed_results$agent_disclosures
+  })
+  
+  # Trait disclosure plot
+  output$trait_disclosure_plot <- renderPlot({
+    req(values$processed_results)
+    
+    ggplot(values$processed_results$trait_disclosures,
+           aes(x = trait, y = disclosure_rate)) +
+      geom_bar(stat = "identity", fill = "darkgreen") +
+      labs(title = "Disclosure Rate by Trait", x = "Trait Number", y = "Disclosure Rate") +
+      theme_minimal() +
+      scale_x_continuous(breaks = 1:values$processed_results$params$L)
+  })
+  
+  # Trait disclosure table
+  output$trait_disclosure_table <- renderDataTable({
+    req(values$processed_results)
+    values$processed_results$trait_disclosures
+  })
+  
+  # Raw results table
+  output$results_table <- renderDataTable({
+    req(values$processed_results)
+    values$processed_results$time_series
+  })
+  
+  # Network visualization
+  output$network_plot <- renderPlot({
+    req(values$sim_results, input$network_round)
+    
+    round_idx <- as.numeric(input$network_round)
+    graph <- values$network_states[[round_idx]]
+    
+    # Get similarity matrix for the selected round
+    # In a real implementation, you would use the actual similarity matrix for each round
+    perceived_similarity_matrix <- matrix(0, nrow = vcount(graph), ncol = vcount(graph))
+    
+    if (round_idx == values$processed_results$params$T) {
+      # Use final similarity matrix for last round
+      perceived_similarity_matrix <- values$sim_results$rounds[[round_idx]]$similarity$perceived_similarity_matrix
+    } else {
+      # For earlier rounds, we would need to store these (using final for demo)
+      perceived_similarity_matrix <- values$sim_results$rounds[[round_idx]]$similarity$perceived_similarity_matrix
+    }
+    
+    # Color nodes based on selected attribute
+    node_color_values <- numeric(vcount(graph))
+    
+    if (input$color_by == "Average Similarity") {
+      node_color_values <- rowMeans(perceived_similarity_matrix, na.rm = TRUE)
+    } else if (input$color_by == "Type Disclosure Rate") {
+      node_color_values <- values$processed_results$agent_disclosures$disclosures
+    } else if (input$color_by == "Degree") {
+      node_color_values <- degree(graph)
+    }
+    
+    # Normalize values for color mapping
+    if (length(node_color_values) > 0 &&
+        diff(range(node_color_values)) > 0) {
+      node_colors <- (node_color_values - min(node_color_values)) /
+        (max(node_color_values) - min(node_color_values))
+    } else {
+      node_colors <- rep(0.5, vcount(graph))
+    }
+    
+    # Get layout
+    layout <- layout_with_fr(graph)
+    
+    # Set node size
+    node_size <- input$node_size
+    
+    # Plot network
+    if (input$show_labels) {
+      plot(
+        graph,
+        layout = layout,
+        vertex.color = heat.colors(100)[round(node_colors * 99) + 1],
+        vertex.size = node_size * 3,
+        vertex.label = 1:vcount(graph),
+        vertex.label.cex = 0.8,
+        edge.arrow.size = 0.5,
+        main = paste("Network at Round", round_idx)
+      )
+    } else {
+      plot(
+        graph,
+        layout = layout,
+        vertex.color = heat.colors(100)[round(node_colors * 99) + 1],
+        vertex.size = node_size * 3,
+        vertex.label = NA,
+        edge.arrow.size = 0.5,
+        main = paste("Network at Round", round_idx)
+      )
+    }
+    
+    # Add legend for color scale
+    legend_title <- switch(
+      input$color_by,
+      "Average Similarity" = "Avg. Similarity",
+      "Type Disclosure Rate" = "Disclosures",
+      "Degree" = "Degree"
+    )
+    
+    legend_values <- seq(min(node_color_values),
+                         max(node_color_values),
+                         length.out = 5)
+    legend_colors <- heat.colors(5)
+    
+    legend(
+      "topright",
+      legend = round(legend_values, 2),
+      fill = legend_colors,
+      title = legend_title
+    )
+  })
+  
+  # Parameter sweep functionality
+  observeEvent(input$run_sweep, {
+    req(!values$is_running)
+    
+    values$is_running <- TRUE
+    add_log("Starting parameter sweep...")
+    
+    # Get base parameters
+    base_params <- get_params()
+    
+    # Create parameter grid based on selected parameters to sweep
+    param_grid <- list()
+    
+    if ("network_type" %in% input$sweep_params) {
+      param_grid$network_type <- c("ER", "WS", "BA")
+    }
+    
+    if ("model_version" %in% input$sweep_params) {
+      param_grid$model_version <- c("static", "dynamic")
+    }
+    
+    if ("disclosure_type" %in% input$sweep_params) {
+      param_grid$disclosure_type <- c("selective", "global")
+    }
+    
+    if ("delta" %in% input$sweep_params) {
+      param_grid$delta <- c(0.2, 0.5, 0.8)
+    }
+    
+    if ("b" %in% input$sweep_params) {
+      param_grid$b <- c(0.6, 0.75, 0.9)
+    }
+    
+    # Check if any parameters selected
+    if (length(param_grid) == 0) {
+      add_log("Error: No parameters selected for sweep")
+      values$is_running <- FALSE
+      return()
+    }
+    
+    # Set up progress updates
+    updateProgressBar(session, "progress", value = 0)
+    
+    # Run parameter sweep in background
+    future::plan(future::multisession)
+    
+    future_promise <- future::future({
+      # Reduce number of rounds for sweep to make it faster
+      base_params$T <- min(base_params$T, 10)
+      
+      # Run sweep
+      sweep_results <- run_parameter_sweep(base_params, param_grid, num_runs = input$num_runs)
+      return(sweep_results)
+    })
+    
+    # Handle the promise
+    promises::then(
+      future_promise,
+      onFulfilled = function(result) {
+        values$sweep_results <- result
+        add_log("Parameter sweep completed successfully!")
+        values$is_running <- FALSE
         updateProgressBar(session, "progress", value = 100)
-      } else {
-        current <- isolate(getCurrentProgressValue(session, "progress"))
-        if (current < 90) {
-          updateProgressBar(session, "progress", value = current + 2)
+      },
+      onRejected = function(error) {
+        add_log(paste("Error in parameter sweep:", error$message))
+        values$is_running <- FALSE
+        updateProgressBar(session, "progress", value = 0)
+      }
+    )
+    
+    # Update progress periodically
+    observe({
+      invalidateLater(500)
+      if (values$is_running) {
+        if (future::resolved(future_promise)) {
+          updateProgressBar(session, "progress", value = 100)
+        } else {
+          current <- isolate(getCurrentProgressValue(session, "progress"))
+          if (current < 90) {
+            updateProgressBar(session, "progress", value = current + 2)
+          }
         }
       }
-    }
+    })
   })
-})
-
-# Sweep results visualization
-output$sweep_plot <- renderPlot({
-  req(values$sweep_results)
   
-  # Determine which parameters were swept
-  param_cols <- names(values$sweep_results)[!(
-    names(values$sweep_results) %in%
-      c(
-        "run",
-        "final_neighbor_similarity",
-        "final_all_similarity",
-        "final_similarity_gap",
-        "final_variance",
-        "final_bimodality",
-        "final_clustering",
-        "final_modularity",
-        "final_welfare",
-        "final_gini",
-        "disclosure_rate"
-      )
-  )]
-  
-  # Choose primary and secondary parameters for plot
-  if (length(param_cols) >= 2) {
-    x_param <- param_cols[1]
-    color_param <- param_cols[2]
-  } else if (length(param_cols) == 1) {
-    x_param <- param_cols[1]
-    color_param <- "run"
-  } else {
-    # Fallback if no parameters were swept
-    return(
-      ggplot() +
-        annotate(
-          "text",
-          x = 0.5,
-          y = 0.5,
-          label = "No parameter sweep data available"
-        ) +
-        theme_void()
-    )
-  }
-  
-  # Create plot data
-  plot_data <- values$sweep_results
-  
-  # Create faceted plot for similarity gap and polarization
-  p <- ggplot(
-    plot_data,
-    aes_string(
-      x = x_param,
-      y = "final_similarity_gap",
-      color = color_param,
-      group = color_param
-    )
-  ) +
-    stat_summary(fun = mean, geom = "line") +
-    stat_summary(fun = mean, geom = "point", size = 3) +
-    stat_summary(
-      fun.data = function(x) {
-        return(data.frame(ymin = mean(x) - sd(x), ymax = mean(x) + sd(x)))
-      },
-      geom = "errorbar",
-      width = 0.2
-    ) +
-    facet_wrap(~ "Similarity Gap") +
-    labs(title = "Parameter Sweep Results",
-         x = gsub("_", " ", toupper(x_param)),
-         y = "Value") +
-    theme_minimal() +
-    theme(legend.title = element_text(face = "bold"))
-  
-  return(p)
-})
-
-# Sweep results table
-output$sweep_table <- renderDataTable({
-  req(values$sweep_results)
-  
-  # Average results across runs
-  sweep_summary <- values$sweep_results %>%
-    group_by_at(vars(-run, -starts_with("final_"), -disclosure_rate)) %>%
-    summarize(
-      neighbor_similarity = mean(final_neighbor_similarity),
-      all_similarity = mean(final_all_similarity),
-      similarity_gap = mean(final_similarity_gap),
-      polarization = mean(final_variance),
-      clustering = mean(final_clustering),
-      modularity = mean(final_modularity),
-      welfare = mean(final_welfare),
-      gini = mean(final_gini),
-      disclosure_rate = mean(disclosure_rate),
-      .groups = "drop"
-    )
-  
-  return(sweep_summary)
-})
-
-# Download handlers
-output$download_results <- downloadHandler(
-  filename = function() {
-    paste("simulation_results_",
-          format(Sys.time(), "%Y%m%d_%H%M%S"),
-          ".csv",
-          sep = "")
-  },
-  content = function(file) {
-    req(values$processed_results)
-    write.csv(values$processed_results$time_series, file, row.names = FALSE)
-  }
-)
-
-output$download_sweep <- downloadHandler(
-  filename = function() {
-    paste("sweep_results_",
-          format(Sys.time(), "%Y%m%d_%H%M%S"),
-          ".csv",
-          sep = "")
-  },
-  content = function(file) {
+  # Sweep results visualization
+  output$sweep_plot <- renderPlot({
     req(values$sweep_results)
-    write.csv(values$sweep_results, file, row.names = FALSE)
-  }
-)
+    
+    # Determine which parameters were swept
+    param_cols <- names(values$sweep_results)[!(
+      names(values$sweep_results) %in%
+        c(
+          "run",
+          "final_neighbor_similarity",
+          "final_all_similarity",
+          "final_similarity_gap",
+          "final_variance",
+          "final_bimodality",
+          "final_clustering",
+          "final_modularity",
+          "final_welfare",
+          "final_gini",
+          "disclosure_rate"
+        )
+    )]
+    
+    # Choose primary and secondary parameters for plot
+    if (length(param_cols) >= 2) {
+      x_param <- param_cols[1]
+      color_param <- param_cols[2]
+    } else if (length(param_cols) == 1) {
+      x_param <- param_cols[1]
+      color_param <- "run"
+    } else {
+      # Fallback if no parameters were swept
+      return(
+        ggplot() +
+          annotate(
+            "text",
+            x = 0.5,
+            y = 0.5,
+            label = "No parameter sweep data available"
+          ) +
+          theme_void()
+      )
+    }
+    
+    # Create plot data
+    plot_data <- values$sweep_results
+    
+    # Create faceted plot for similarity gap and polarization
+    p <- ggplot(
+      plot_data,
+      aes_string(
+        x = x_param,
+        y = "final_similarity_gap",
+        color = color_param,
+        group = color_param
+      )
+    ) +
+      stat_summary(fun = mean, geom = "line") +
+      stat_summary(fun = mean, geom = "point", size = 3) +
+      stat_summary(
+        fun.data = function(x) {
+          return(data.frame(ymin = mean(x) - sd(x), ymax = mean(x) + sd(x)))
+        },
+        geom = "errorbar",
+        width = 0.2
+      ) +
+      facet_wrap(~ "Similarity Gap") +
+      labs(title = "Parameter Sweep Results",
+           x = gsub("_", " ", toupper(x_param)),
+           y = "Value") +
+      theme_minimal() +
+      theme(legend.title = element_text(face = "bold"))
+    
+    return(p)
+  })
+  
+  # Sweep results table
+  output$sweep_table <- renderDataTable({
+    req(values$sweep_results)
+    
+    # Average results across runs
+    sweep_summary <- values$sweep_results %>%
+      group_by_at(vars(-run, -starts_with("final_"), -disclosure_rate)) %>%
+      summarize(
+        neighbor_similarity = mean(final_neighbor_similarity),
+        all_similarity = mean(final_all_similarity),
+        similarity_gap = mean(final_similarity_gap),
+        polarization = mean(final_variance),
+        clustering = mean(final_clustering),
+        modularity = mean(final_modularity),
+        welfare = mean(final_welfare),
+        gini = mean(final_gini),
+        disclosure_rate = mean(disclosure_rate),
+        .groups = "drop"
+      )
+    
+    return(sweep_summary)
+  })
+  
+  # Download handlers
+  output$download_results <- downloadHandler(
+    filename = function() {
+      paste("simulation_results_",
+            format(Sys.time(), "%Y%m%d_%H%M%S"),
+            ".csv",
+            sep = "")
+    },
+    content = function(file) {
+      req(values$processed_results)
+      write.csv(values$processed_results$time_series, file, row.names = FALSE)
+    }
+  )
+  
+  output$download_sweep <- downloadHandler(
+    filename = function() {
+      paste("sweep_results_",
+            format(Sys.time(), "%Y%m%d_%H%M%S"),
+            ".csv",
+            sep = "")
+    },
+    content = function(file) {
+      req(values$sweep_results)
+      write.csv(values$sweep_results, file, row.names = FALSE)
+    }
+  )
 }
 
 ###############################################################

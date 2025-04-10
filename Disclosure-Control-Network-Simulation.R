@@ -14,10 +14,15 @@ library(tidyr)
 
 #' Generate a network based on specified model
 #'
-#' @param model_type Type of network model: "ER" (Erdős-Rényi), "WS" (Watts-Strogatz), or "BA" (Barabási-Albert)
+#' @param model_type Type of network model:
+#' "ER" (Erdős-Rényi),
+#' "WS" (Watts-Strogatz),
+#' "BA" (Barabási-Albert)
 #' @param N Number of nodes
-#' @param p Probability of edge formation (for ER) or rewiring probability (for WS)
-#' @param k Initial neighbor count (for WS) or edges per new node (for BA)
+#' @param p Probability of edge formation (for ER)
+#' or rewiring probability (for WS)
+#' @param k Initial neighbor count (for WS)
+#' or edges per new node (for BA)
 #' @return An igraph object representing the network
 generate_network <- function(model_type, N, p = 0.1, k = 4) {
   if (model_type == "ER") {
@@ -131,97 +136,8 @@ initialize_beliefs <- function(N, L, type_matrix) {
 }
 
 ###############################################################
-# PART 2: SIMILARITY AND UTILITY CALCULATIONS
+# PART 2: UTILITY CALCULATIONS
 ###############################################################
-
-#' Calculate outcome measures: perceived similarity, revealed similarity, and objective similarity
-#'
-#' @param graph The network graph
-#' @param beliefs Belief array
-#' @param types Type matrix
-#' @param N Number of agents
-#' @param L Length of type vector
-#' @return List of similarity outcome measures
-compute_similarity_outcomes <- function(graph, beliefs, types, N, L) {
-  # Initialize similarity matrices
-  perceived_similarity_matrix <- matrix(0, nrow = N, ncol = N)
-  revealed_similarity_matrix <- matrix(0, nrow = N, ncol = N)
-  objective_similarity_matrix <- matrix(0, nrow = N, ncol = N)
-  
-  for (i in 1:N) {
-    for (j in 1:N) {
-      if (i != j) {
-        ti <- types[i, ]
-        tj <- types[j, ]
-        bij <- beliefs[i, j, ]
-        
-        # Perceived similarity
-        sim_vec <- ifelse(bij == 0 |
-                            bij == 1, as.numeric(ti == bij), 1 - abs(ti - bij))
-        perceived_similarity_matrix[i, j] <- mean(sim_vec)
-        
-        
-        # Revealed similarity
-        match_vec <- ti == tj
-        known_vec <- bij == tj
-        revealed_similarity_matrix[i, j] <- mean(match_vec &
-                                                   known_vec)
-        # Objective similarity
-        objective_similarity_matrix[i, j] <- mean(ti == tj)
-        
-        
-        
-        
-      }
-    }
-  }
-  
-  # Helper function to compute neighbor average
-  average_with_neighbors <- function(mat) {
-    sims <- numeric(N)
-    for (i in 1:N) {
-      neighbors_i <- neighbors(graph, i)
-      if (length(neighbors_i) > 0) {
-        sims[i] <- mean(mat[i, neighbors_i])
-      } else {
-        sims[i] <- NA
-      }
-    }
-    return(mean(sims, na.rm = TRUE))
-  }
-  
-  # Helper function to compute global average
-  average_across_all <- function(mat) {
-    return(mean(mat[lower.tri(mat) | upper.tri(mat)]))
-  }
-  
-  # Compute all averages
-  neighbor_perceived <- average_with_neighbors(perceived_similarity_matrix)
-  all_perceived <- average_across_all(perceived_similarity_matrix)
-  neighbor_objective <- average_with_neighbors(objective_similarity_matrix)
-  all_objective <- average_across_all(objective_similarity_matrix)
-  neighbor_revealed <- average_with_neighbors(revealed_similarity_matrix)
-  all_revealed <- average_across_all(revealed_similarity_matrix)
-  
-  return(
-    list(
-      perceived_neighbor_similarity = neighbor_perceived,
-      perceived_all_similarity = all_perceived,
-      perceived_similarity_gap = neighbor_perceived - all_perceived,
-      objective_neighbor_similarity = neighbor_objective,
-      objective_all_similarity = all_objective,
-      objective_similarity_gap = neighbor_objective - all_objective,
-      revealed_neighbor_similarity = neighbor_revealed,
-      revealed_all_similarity = all_revealed,
-      revealed_similarity_gap = neighbor_revealed - all_revealed,
-      similarity_matrix = perceived_similarity_matrix,
-      objective_similarity_matrix = objective_similarity_matrix,
-      revealed_similarity_matrix = revealed_similarity_matrix
-    )
-  )
-}
-
-
 
 #' Calculate the shortest path lengths between all nodes in the network
 #'
@@ -237,8 +153,8 @@ calculate_shortest_paths <- function(graph) {
 #'
 #' @param agent_id Index of the agent
 #' @param distances Matrix of shortest path lengths
-#' @param beliefs Belief array
-#' @param types Type matrix
+#' @param beliefs Belief array for all agents
+#' @param types Type matrix for all agents
 #' @param L Length of type vector
 #' @param delta Influence decay factor
 #' @return Utility value for the agent
@@ -273,8 +189,8 @@ calculate_utility <- function(agent_id,
 #' Calculate utilities for all agents
 #'
 #' @param distances Matrix of shortest path lengths
-#' @param beliefs Belief array
-#' @param types Type matrix
+#' @param beliefs Belief array for all agents
+#' @param types Type matrix for all agents
 #' @param N Number of agents
 #' @param L Length of type vector
 #' @param delta Influence decay factor
@@ -290,10 +206,10 @@ calculate_all_utilities <- function(distances, beliefs, types, N, L, delta) {
 }
 
 ###############################################################
-# PART 3: DECISION MAKING AND ACTION SELECTION
+# PART 3: BEST RESPONSE FUNCTIONS
 ###############################################################
 
-#' Determine the best action for an agent
+#' Determine the best response for a given agent
 #'
 #' @param agent_id Index of the agent
 #' @param target_agents Indices of target agents for disclosure
@@ -439,10 +355,10 @@ rewire_connections <- function(graph, agent_id, beliefs, types, L) {
 #' Calculate similarity-based outcome measures
 #'
 #' @param graph The network graph
-#' @param similarity_matrix Matrix of similarity values
+#' @param similarity_matrices List of matrices of similarity values
 #' @param N Number of agents
 #' @return List of similarity outcome measures
-calculate_similarity_outcomes <- function(graph, beliefs, types, N, L) {
+compute_similarity_outcomes <- function(graph, beliefs, types, N, L) {
   # Initialize matrices
   similarity_matrices <- list(
     perceived = matrix(0, N, N),
@@ -478,7 +394,7 @@ calculate_similarity_outcomes <- function(graph, beliefs, types, N, L) {
   # Helper to compute neighbor and global averages
   compute_averages <- function(mat) {
     neighbor_avg <- mean(sapply(1:N, function(i) {
-      ni <- neighbors(graph, i)
+      ni <- as.integer(neighbors(graph, i))   # convert to numeric
       if (length(ni) > 0)
         mean(mat[i, ni])
       else
@@ -513,12 +429,12 @@ calculate_similarity_outcomes <- function(graph, beliefs, types, N, L) {
 
 #' Calculate polarization metrics
 #'
-#' @param similarity_matrix Matrix of similarity values
+#' @param perceived_similarity_matrix Matrix of similarity values
 #' @return List of polarization metrics
-calculate_polarization_metrics <- function(similarity_matrix) {
+calculate_polarization_metrics <- function(perceived_similarity_matrix) {
   # Flatten the similarity matrix (excluding self-similarities)
-  flat_similarities <- similarity_matrix[lower.tri(similarity_matrix) |
-                                           upper.tri(similarity_matrix)]
+  flat_similarities <- perceived_similarity_matrix[lower.tri(perceived_similarity_matrix) |
+                                           upper.tri(perceived_similarity_matrix)]
   
   # Calculate mean similarity
   mean_similarity <- mean(flat_similarities)
@@ -727,12 +643,13 @@ run_simulation_round <- function(graph,
   }
   
   # Calculate outcome measures for this round
-  similarity_matrix <- compute_similarity_outcomes(beliefs, types, N, L)
+  perceived_similarity_matrix <- compute_similarity_outcomes(graph, beliefs, types, N, L)$similarity_matrices$perceived
+  revealed_perceived_similarity_matrix <- compute_similarity_outcomes(graph, beliefs, types, N, L)$similarity_matrices$perceived
   
   # Store results
   outcomes <- list(
-    similarity = calculate_similarity_outcomes(graph, similarity_matrix, N),
-    polarization = calculate_polarization_metrics(similarity_matrix),
+    similarity = compute_similarity_outcomes(graph, beliefs, types, N, L),
+    polarization = calculate_polarization_metrics(perceived_similarity_matrix),
     network = calculate_network_metrics(graph),
     utilities = calculate_all_utilities(distances, beliefs, types, N, L, delta),
     actions = round_actions
@@ -957,7 +874,7 @@ create_time_series_plots <- function(processed_results) {
     ) +
     theme_minimal() +
     scale_color_brewer(palette = "Dark2") +
-    scale_y_continuous(sec.axis = sec_axis(~ . / 100, name = "Gini Coefficient"))
+    scale_y_continuous(sec.axis = sec_axis( ~ . / 100, name = "Gini Coefficient"))
   
   return(
     list(
@@ -972,12 +889,12 @@ create_time_series_plots <- function(processed_results) {
 #' Visualize the network with node colors based on similarity
 #'
 #' @param graph The network graph
-#' @param similarity_matrix Matrix of similarity values
+#' @param perceived_similarity_matrix Matrix of similarity values
 #' @return ggplot object of the network
-visualize_network <- function(graph, similarity_matrix) {
+visualize_network <- function(graph, perceived_similarity_matrix) {
   # Calculate average similarity for each node
   n <- vcount(graph)
-  avg_similarities <- rowMeans(similarity_matrix, na.rm = TRUE)
+  avg_similarities <- rowMeans(perceived_similarity_matrix, na.rm = TRUE)
   
   # Normalize for color mapping
   node_colors <- (avg_similarities - min(avg_similarities)) /
