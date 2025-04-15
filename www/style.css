@@ -7684,3 +7684,6 @@ input[type="checkbox"]:disabled:checked:after,
 .main-header .sidebar-toggle .logo {
   height: auto;
 }
+.nav-tabs-custom > .nav-tabs > li > a {
+  font-size: 16px; /* You can make this larger if needed */
+}

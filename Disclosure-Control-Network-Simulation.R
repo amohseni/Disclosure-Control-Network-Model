@@ -149,6 +149,24 @@ calculate_shortest_paths <- function(graph) {
   return(distances)
 }
 
+#' Compute the expected similarity between two agents from evaluator's perspective
+#'
+#' @param evaluator Index of the agent who is evaluating (i)
+#' @param evaluated Index of the agent being evaluated (j)
+#' @param beliefs 3D array of beliefs (N x N x L)
+#' @param types Matrix of true type vectors (N x L)
+#' @param L Length of the type vector
+#' @return Expected similarity value (between 0 and 1)
+compute_expected_similarity <- function(evaluator, evaluated, beliefs, types, L) {
+  evaluator_type <- types[evaluator, ]
+  belief_about_evaluated <- beliefs[evaluator, evaluated, ]
+  
+  # Expected similarity is just the average over the traits of:
+  # 1 if the evaluator knows the trait, otherwise expected similarity = 1 - |type_i - belief|
+  similarities <- 1 - abs(evaluator_type - belief_about_evaluated)
+  return(mean(similarities))
+}
+
 #' Calculate utility for a single agent
 #'
 #' @param agent_id Index of the agent

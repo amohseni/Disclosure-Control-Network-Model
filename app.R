@@ -134,7 +134,6 @@ ui <- dashboardPage(
       sidebarMenu(
         id = "tabs",
         style = "font-size: 16px;",
-        menuItem("Run Simulation", tabName = "simulation", icon = icon("play")),
         menuItem("Results", tabName = "results", icon = icon("chart-bar")),
         menuItem(
           "Network Visualization",
@@ -160,13 +159,13 @@ ui <- dashboardPage(
             id = "progress",
             value = 0,
             display_pct = TRUE
-          )), 
+          )),
       sliderInput(
         "N",
         "Number of Agents (N):",
         min = 1,
         max = 100,
-        value = 20
+        value = 40
       ),
       helpText("Number of agents in the network."),
       sliderInput(
@@ -289,7 +288,7 @@ ui <- dashboardPage(
       selectInput(
         "disclosure_type",
         "Disclosure Type:",
-        choices = c("Selective" = "selective", "Global" = "global")
+        choices = c("Global" = "global", "Selective" = "selective")
       ),
       helpText("Determine if disclosures are made selectively or globally."),
       
@@ -302,133 +301,62 @@ ui <- dashboardPage(
         )
       )
     )
-  )),
-  
+  )), 
   dashboardBody(
     useShinyjs(),
     includeCSS("www/style.css"),
     tabItems(
-      tabItem(tabName = "simulation", fluidRow(
-        tabBox(
-          title = "Simulation Status",
-          width = 7,
-          tabPanel("Status Log", verbatimTextOutput("status_log")),
-          tabPanel("Summary Statistics", tableOutput("summary_stats"))
-        )
-      )),
-      tabItem(tabName = "results", fluidRow(
-        box(
-          title = "Visualization Controls",
-          width = 3,
-          selectInput(
-            "plot_type",
-            "Plot Type:",
-            choices = c("Similarity", "Polarization", "Network Metrics", "Mean Welfare"),
-            selected = "Similarity"
-          ),
-          checkboxInput("use_plotly", "Interactive Plot", TRUE),
-          downloadButton("download_results", "Download Results")
-        ),
-        box(
-          title = "Time Series Plot",
-          width = 9,
-          conditionalPanel(condition = "input.use_plotly == false", plotOutput("time_series_plot", height = "400px")),
-          conditionalPanel(
-            condition = "input.use_plotly == true",
-            plotlyOutput("time_series_plotly", height = "400px")
-          )
-        )
-      ), fluidRow(
-        tabBox(
-          title = "Detailed Results",
-          width = 12,
-          tabPanel(
-            "Agent Disclosures",
-            plotOutput("agent_disclosure_plot", height = "300px"),
-            dataTableOutput("agent_disclosure_table")
-          ),
-          tabPanel(
-            "Trait Disclosures",
-            plotOutput("trait_disclosure_plot", height = "300px"),
-            dataTableOutput("trait_disclosure_table")
-          ),
-          tabPanel("Raw Data", dataTableOutput("results_table"))
-        )
-      )),
+      tabItem(tabName = "results",
+              tabBox(title = "Results", width = 12,
+                     tabPanel("Time Series",
+                              fluidRow(
+                                box(title = "Visualization Controls", width = 4,
+                                    selectInput("plot_type", "Plot Type:", choices = c("Similarity", "Polarization", "Network Metrics", "Mean Welfare"), selected = "Similarity"),
+                                    
+                                    downloadButton("download_results", "Download Results"),
+                                    br(),
+                                    div(style = "margin-top: 20px;",
+                                        h5("Status Log"),
+                                        verbatimTextOutput("status_log")
+                                    )
+                                ),
+                                box(title = "Time Series Plot", width = 8,
+                                    plotlyOutput("time_series_plotly", height = "400px")
+                                )
+                              )
+                     ),
+                     tabPanel("Detailed Results",
+                              fluidRow(
+                                tabBox(title = NULL, width = 12,
+                                       tabPanel("Summary Statistics", tableOutput("summary_stats")),
+                                       tabPanel("Agent Disclosures", plotOutput("agent_disclosure_plot", height = "300px"), dataTableOutput("agent_disclosure_table")),
+                                       tabPanel("Trait Disclosures", plotOutput("trait_disclosure_plot", height = "300px"), dataTableOutput("trait_disclosure_table")),
+                                       tabPanel("Raw Data", dataTableOutput("results_table"))
+                                )
+                              )
+                     )
+              )
+      ),
       tabItem(tabName = "network", fluidRow(
-        box(
-          title = "Controls",
-          width = 3,
-          selectInput("network_round", "Round:", choices = ""),
-          selectInput(
-            "color_by",
-            "Color Nodes By:",
-            choices = c("Average Similarity", "Type Disclosure Rate", "Degree")
-          ),
-          sliderInput(
-            "node_size",
-            "Node Size:",
-            min = 1,
-            max = 10,
-            value = 3
-          ),
-          checkboxInput("show_labels", "Show Node Labels", FALSE)
+        box(title = "Controls", width = 3,
+            selectInput("network_round", "Round:", choices = ""),
+            selectInput("color_by", "Color Nodes By:", choices = c("Average Similarity", "Type Disclosure Rate", "Degree")),
+            sliderInput("node_size", "Node Size:", min = 1, max = 10, value = 3),
+            checkboxInput("show_labels", "Show Node Labels", FALSE)
         ),
-        box(
-          title = "Network Graph",
-          width = 9,
-          plotOutput("network_plot", height = "600px")
-        )
+        box(title = "Network Graph", width = 9, plotOutput("network_plot", height = "600px"))
       )),
-      tabItem(tabName = "sweep", fluidRow(
-        box(
-          title = "Parameter Sweep Settings",
-          width = 3,
-          checkboxGroupInput(
-            "sweep_params",
-            "Parameters to Sweep:",
-            choices = c(
-              "Network Type" = "network_type",
-              "Network Version" = "model_version",
-              "Disclosure Type" = "disclosure_type",
-              "Influence Decay" = "delta",
-              "Bias Parameter" = "b"
-            )
-          ),
-          numericInput(
-            "num_runs",
-            "Runs per Combination:",
-            3,
-            min = 1,
-            max = 10
-          ),
-          actionButton("run_sweep", "Run Parameter Sweep", style = "color: #fff; background-color: #337ab7; width: 100%"),
-          hr(),
-          downloadButton("download_sweep", "Download Sweep Results")
-        ),
-        tabBox(
-          title = "Sweep Results",
-          width = 9,
-          tabPanel("Summary Plot", plotOutput("sweep_plot", height = "500px")),
-          tabPanel("Results Table", dataTableOutput("sweep_table"))
-        )
-      )),
-      tabItem(tabName = "about", box(
-        title = "About the Model",
-        width = 12,
-        h3(
-          "Selective Disclosure <br> & Perceived Polarization <br> on Social Networks"
-        ),
-        p(
-          "Social media platforms host public forums where individuals make declarations at an unprecedented scale, often with little control over their audience. In this paper, we develop a formal model in which agents, each endowed with a binary type vector, strive to be perceived as similar to others. Agents selectively disclose partial information about their type vectors---either to the entire network or to a chosen subset---with evaluations weighted by social proximity. We explore how these disclosure strategies influence perceived similarity among immediate contacts and across the broader network, and how they may contribute to perceptions regarding polarization. We compare the effect in static networks with those in dynamic networks, where agents form or sever ties based on perceived similarity."
-        ),        
-        p(
-          "This model simulates how changes in control over self-disclosure affects perceived similarity and polarization in social networks."
-        )
-      ))
+      tabItem(tabName = "about",
+              box(title = "About", width = 12,
+                  h3(HTML("Selective Disclosure <br> & Perceived Polarization <br> on Social Networks")),
+                  p("Social media platforms host public forums where individuals make declarations at an unprecedented scale, often with little control over their audience. In this paper, we develop a formal model in which agents, each endowed with a binary type vector, strive to be perceived as similar to others. Agents selectively disclose partial information about their type vectors---either to the entire network or to a chosen subset---with evaluations weighted by social proximity. We explore how these disclosure strategies influence perceived similarity among immediate contacts and across the broader network, and how they may contribute to perceptions regarding polarization. We compare the effect in static networks with those in dynamic networks, where agents form or sever ties based on perceived similarity."),
+                  p("This model simulates how changes in control over self-disclosure affects perceived similarity and polarization in social networks.")
+              )
+      )
     )
   )
 )
+
 
 ###############################################################
 # SERVER LOGIC
@@ -612,7 +540,7 @@ server <- function(input, output, session) {
     
     # Get parameters
     params <- get_params()
-    print(params) 
+    print(params)
     
     # Initialize progress bar
     updateProgressBar(session, "progress", value = 0)
@@ -1043,7 +971,9 @@ server <- function(input, output, session) {
       )
     ) +
       stat_summary(fun = mean, geom = "line") +
-      stat_summary(fun = mean, geom = "point", size = 3) +
+      stat_summary(fun = mean,
+                   geom = "point",
+                   size = 3) +
       stat_summary(
         fun.data = function(x) {
           return(data.frame(ymin = mean(x) - sd(x), ymax = mean(x) + sd(x)))
