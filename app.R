@@ -18,6 +18,7 @@
 #     "future",
 #     "promises",
 #     "shinyBS"
+#     "visNetwork"
 #   )
 # )
 
@@ -33,6 +34,7 @@ library(plotly)
 library(DT)
 library(shinyjs)
 library(shinyBS)
+library(visNetwork)
 
 library(future)
 library(promises)
@@ -41,7 +43,7 @@ library(promises)
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 getwd()
 
-# Source the model functions (assuming the model code is in "Disclosure-Control-Network-Smulation.R")
+# Source the model functions (assuming the model code is in "Disclosure-Control-Network-Simulation.R")
 source("Disclosure-Control-Network-Simulation.R")
 
 ###############################################################
@@ -140,11 +142,11 @@ ui <- dashboardPage(
           tabName = "network",
           icon = icon("project-diagram")
         ),
-        # menuItem(
-        #   "Parameter Sweep",
-        #   tabName = "sweep",
-        #   icon = icon("tasks")
-        # ),
+        menuItem(
+          "Parameter Sweep",
+          tabName = "sweep",
+          icon = icon("tasks")
+        ),
         menuItem("About", tabName = "about", icon = icon("info-circle"))
       ),
       actionButton(
@@ -153,13 +155,6 @@ ui <- dashboardPage(
         icon = icon("play"),
         style = "width: 80%; box-sizing: border-box; color: #fff; background-color: #337ab7; width: 80%; margin: auto; display: block;"
       ),
-      br(),
-      div(style = "width: 80%; margin: 5px auto;", # 10px top/bottom, auto left/right
-          progressBar(
-            id = "progress",
-            value = 0,
-            display_pct = TRUE
-          )),
       sliderInput(
         "N",
         "Number of Agents (N):",
@@ -288,75 +283,228 @@ ui <- dashboardPage(
       selectInput(
         "disclosure_type",
         "Disclosure Type:",
-        choices = c("Global" = "global", "Selective" = "selective")
+        choices = c("Selective" = "selective", "Global" = "global")
       ),
       helpText("Determine if disclosures are made selectively or globally."),
       
       conditionalPanel(
         condition = "input.disclosure_type == 'selective'",
         uiOutput("s_ui"),
-        # This outputs the slider with the new label.
         helpText(
           "Selective Disclosure Size: Number of agents that reveal their traits."
         )
       )
     )
-  )), 
+  )),
   dashboardBody(
-    useShinyjs(),
+    shinyjs::useShinyjs(),
+    # Initialize shinyjs here
     includeCSS("www/style.css"),
     tabItems(
-      tabItem(tabName = "results",
-              tabBox(title = "Results", width = 12,
-                     tabPanel("Time Series",
-                              fluidRow(
-                                box(title = "Visualization Controls", width = 4,
-                                    selectInput("plot_type", "Plot Type:", choices = c("Similarity", "Polarization", "Network Metrics", "Mean Welfare"), selected = "Similarity"),
-                                    
-                                    downloadButton("download_results", "Download Results"),
-                                    br(),
-                                    div(style = "margin-top: 20px;",
-                                        h5("Status Log"),
-                                        verbatimTextOutput("status_log")
-                                    )
-                                ),
-                                box(title = "Time Series Plot", width = 8,
-                                    plotlyOutput("time_series_plotly", height = "400px")
-                                )
-                              )
-                     ),
-                     tabPanel("Detailed Results",
-                              fluidRow(
-                                tabBox(title = NULL, width = 12,
-                                       tabPanel("Summary Statistics", tableOutput("summary_stats")),
-                                       tabPanel("Agent Disclosures", plotOutput("agent_disclosure_plot", height = "300px"), dataTableOutput("agent_disclosure_table")),
-                                       tabPanel("Trait Disclosures", plotOutput("trait_disclosure_plot", height = "300px"), dataTableOutput("trait_disclosure_table")),
-                                       tabPanel("Raw Data", dataTableOutput("results_table"))
-                                )
-                              )
-                     )
-              )
+      tabItem(
+        tabName = "results",
+        tabBox(
+          title = "Results",
+          width = 12,
+          tabPanel("Time Series", fluidRow(
+            box(
+              title = "Visualization Controls",
+              width = 4,
+              selectInput(
+                "plot_type",
+                "Plot Type:",
+                choices = c("Similarity", "Polarization", "Network Metrics", "Mean Welfare"),
+                selected = "Similarity"
+              ),
+              
+              downloadButton("download_results", "Download Results"),
+              br(),
+              div(style = "margin-top: 20px;", h5("Status Log"), verbatimTextOutput("status_log"))
+            ),
+            box(
+              title = "Time Series Plot",
+              width = 8,
+              plotlyOutput("time_series_plotly", height = "400px")
+            )
+          )),
+          tabPanel("Detailed Results", fluidRow(
+            tabBox(
+              title = NULL,
+              width = 12,
+              tabPanel("Summary Statistics", tableOutput("summary_stats")),
+              tabPanel(
+                "Agent Disclosures",
+                plotOutput("agent_disclosure_plot", height = "300px"),
+                dataTableOutput("agent_disclosure_table")
+              ),
+              tabPanel(
+                "Trait Disclosures",
+                plotOutput("trait_disclosure_plot", height = "300px"),
+                dataTableOutput("trait_disclosure_table")
+              ),
+              tabPanel("Raw Data", dataTableOutput("results_table"))
+            )
+          ))
+        )
       ),
-      tabItem(tabName = "network", fluidRow(
-        box(title = "Controls", width = 3,
+      tabItem(
+        tabName = "network",
+        fluidRow(
+          box(
+            title = "Controls (Static Plot)",
+            width = 3,
             selectInput("network_round", "Round:", choices = ""),
-            selectInput("color_by", "Color Nodes By:", choices = c("Average Similarity", "Type Disclosure Rate", "Degree")),
-            sliderInput("node_size", "Node Size:", min = 1, max = 10, value = 3),
+            selectInput(
+              "color_by",
+              "Color Nodes By:",
+              choices = c("Average Similarity", "Type Disclosure Rate", "Degree")
+            ),
+            sliderInput(
+              "node_size",
+              "Node Size:",
+              min = 1,
+              max = 10,
+              value = 3
+            ),
             checkboxInput("show_labels", "Show Node Labels", FALSE)
+          ),
+          box(
+            title = "Network Graph (Static)",
+            width = 9,
+            plotOutput("network_plot", height = "600px")
+          )
         ),
-        box(title = "Network Graph", width = 9, plotOutput("network_plot", height = "600px"))
+        br(),
+        fluidRow(
+          box(
+            title = "Animation Controls",
+            width = 3,
+            # A separate slider for the animated version
+            sliderInput("anim_round", "Animation Round:", min = 1, max = 1, value = 1),
+            actionButton("play_btn", "Play"),
+            actionButton("pause_btn", "Pause"),
+            numericInput("play_speed", "Speed (ms):", value = 500, min = 100),
+            helpText("Lower = faster animation")
+          ),
+          box(
+            title = "Animated Network (visNetwork)",
+            width = 9,
+            visNetworkOutput("network_vis", height = "600px")
+          )
+        )
+      ),
+      tabItem(tabName = "about", box(
+        title = "About",
+        width = 12,
+        h3(
+          HTML(
+            "Selective Disclosure <br> & Perceived Polarization <br> on Social Networks"
+          )
+        ),
+        p(
+          "Social media platforms host public forums where individuals make declarations at an unprecedented scale, often with little control over their audience. In this paper, we develop a formal model in which agents, each endowed with a binary type vector, strive to be perceived as similar to others. Agents selectively disclose partial information about their type vectors---either to the entire network or to a chosen subset---with evaluations weighted by social proximity. We explore how these disclosure strategies influence perceived similarity among immediate contacts and across the broader network, and how they may contribute to perceptions regarding polarization. We compare the effect in static networks with those in dynamic networks, where agents form or sever ties based on perceived similarity."
+        ),
+        p(
+          "This model simulates how changes in control over self-disclosure affects perceived similarity and polarization in social networks."
+        )
       )),
-      tabItem(tabName = "about",
-              box(title = "About", width = 12,
-                  h3(HTML("Selective Disclosure <br> & Perceived Polarization <br> on Social Networks")),
-                  p("Social media platforms host public forums where individuals make declarations at an unprecedented scale, often with little control over their audience. In this paper, we develop a formal model in which agents, each endowed with a binary type vector, strive to be perceived as similar to others. Agents selectively disclose partial information about their type vectors---either to the entire network or to a chosen subset---with evaluations weighted by social proximity. We explore how these disclosure strategies influence perceived similarity among immediate contacts and across the broader network, and how they may contribute to perceptions regarding polarization. We compare the effect in static networks with those in dynamic networks, where agents form or sever ties based on perceived similarity."),
-                  p("This model simulates how changes in control over self-disclosure affects perceived similarity and polarization in social networks.")
+      tabItem(tabName = "sweep", tabBox(
+        width = 12,
+        # ------------------ SWEEP INPUT TAB ------------------ #
+        tabPanel(
+          "Sweep Input",
+          fluidRow(column(
+            12,
+            br(),
+            div(
+              style = "text-align: center;", actionButton("run_sweep",
+                                                          "Run Parameter Sweep",
+                                                          icon = icon("play"),
+                                                          style = "width: 180pt; box-sizing: border-box; color: #fff; background-color: #337ab7; margin: auto; display: block;")), 
+            br(),
+            div(
+              style = "text-align: center;",
+              helpText("Select parameter ranges and discrete options for the sweep."),
+            ),
+            div(
+              style = "display: flex; flex-direction: column; align-items: center;",
+              numericInput(
+                "num_runs",
+                "Number of Runs per Combination:",
+                value = 10,
+                min = 1
               )
-      )
+            )
+          )),
+          br(),
+          fluidRow(
+            column(
+              6,
+              h6("Number of Agents (N):"),
+              fluidRow(
+                column(4, numericInput("n_min", "Min N:", 10, min = 1)),
+                column(4, numericInput("n_max", "Max N:", 100, min = 1)),
+                column(4, numericInput("n_step", "Increment:", 10, min = 1))
+              ),
+              
+              h6("Length of Type Vector (L):"),
+              fluidRow(
+                column(4, numericInput("l_min", "Min L:", 1, min = 1)),
+                column(4, numericInput("l_max", "Max L:", 10, min = 1)),
+                column(4, numericInput("l_step", "Increment:", 1, min = 1))
+              ),
+              
+              h6("Number of Rounds (T):"),
+              fluidRow(
+                column(4, numericInput("t_min", "Min T:", 10, min = 1)),
+                column(4, numericInput("t_max", "Max T:", 50, min = 1)),
+                column(4, numericInput("t_step", "Increment:", 10, min = 1))
+              )
+            ),
+            
+            column(
+              6,
+              checkboxGroupInput(
+                "network_type_sweep",
+                "Network Type(s):",
+                choices = c("Erdős-Rényi", "Watts-Strogatz", "Barabási-Albert"),
+                selected = c("Erdős-Rényi")
+              ),
+              checkboxGroupInput(
+                "model_version_sweep",
+                "Model Version:",
+                choices = c("static", "dynamic"),
+                selected = "static"
+              ),
+              checkboxGroupInput(
+                "disclosure_type_sweep",
+                "Disclosure Type:",
+                choices = c("selective", "global"),
+                selected = "selective"
+              )
+            )
+          )
+        ),
+        # ------------------ SWEEP OUTPUT TAB ------------------ #
+        tabPanel("Sweep Output", fluidRow(column(
+          12,
+          div(
+            style = "text-align: center;",
+            downloadButton("download_sweep", "Download Results"),
+          ),
+          br()
+        )), fluidRow(
+          column(
+            12,
+            plotOutput("sweep_plot", height = "400px"),
+            br(),
+            dataTableOutput("sweep_table")
+          )
+        ))
+      ))
     )
   )
 )
-
 
 ###############################################################
 # SERVER LOGIC
@@ -563,18 +711,66 @@ server <- function(input, output, session) {
       onFulfilled = function(result) {
         values$sim_results <- result$sim_results
         values$processed_results <- result$processed_results
+        
+        # For simplicity, the final network is used for each round,
+        # but in a real app you'd store the actual state at each round.
         values$network_states <- lapply(1:params$T, function(t) {
           if (t == 1) {
             return(values$sim_results$final_network)
           } else {
-            # In a real implementation, you would store network states for each round
-            # For simplicity, we're just using the final state here
             return(values$sim_results$final_network)
           }
         })
         
         # Update round selector for network visualization
-        updateSelectInput(session, "network_round", choices = setNames(1:params$T, paste("Round", 1:params$T)))
+        updateSelectInput(session, "network_round", 
+                          choices = setNames(1:params$T, paste("Round", 1:params$T)))
+        
+        # --- NEW CODE: Prepare data for visNetwork animation ---
+        # (1) Compute a single layout from the first round's graph
+        g_first <- values$network_states[[1]]
+        coords <- layout_with_fr(g_first)
+        coords <- coords * 200  # scaling to look nice in visNetwork
+        
+        # (2) We'll store node/edge data frames for each round in these:
+        values$vis_nodes <- vector("list", params$T)
+        values$vis_edges <- vector("list", params$T)
+        
+        # Because your example reuses the final network for each round,
+        # we'll do the same for demonstration:
+        for (r in seq_len(params$T)) {
+          g_r <- values$network_states[[r]]
+          
+          # Create a data.frame for node positions (fixed)
+          node_positions <- data.frame(
+            id = 1:vcount(g_r),
+            x = coords[, 1],
+            y = coords[, 2]
+          )
+          
+          # Minimal color assignment here; you can override in renderVisNetwork
+          # For demonstration, let's color all nodes the same:
+          node_positions$color <- "lightblue"
+          node_positions$label <- paste("Node", node_positions$id)
+          node_positions$size  <- 20
+          
+          # Build edges from igraph
+          edge_df <- get.data.frame(g_r, "edges")
+          if (nrow(edge_df) > 0) {
+            colnames(edge_df)[1:2] <- c("from","to")
+          } else {
+            edge_df <- data.frame(from=integer(0), to=integer(0))
+          }
+          edge_df$color <- "gray"
+          edge_df$width <- 2
+          
+          values$vis_nodes[[r]] <- node_positions
+          values$vis_edges[[r]] <- edge_df
+        }
+        
+        # (3) Set up the anim_round slider range
+        updateSliderInput(session, "anim_round", min = 1, max = params$T, value = 1)
+        # --- End NEW CODE ---
         
         add_log("Simulation completed successfully!")
         values$is_running <- FALSE
@@ -587,23 +783,6 @@ server <- function(input, output, session) {
       }
     )
     
-    # Update progress bar periodically
-    observe({
-      invalidateLater(100)
-      if (values$is_running) {
-        # Check if the promise is resolved
-        if (future::resolved(future_promise)) {
-          updateProgressBar(session, "progress", value = 100)
-        } else {
-          # Increase progress by a small amount
-          current <- isolate(getCurrentProgressValue(session, "progress"))
-          if (current < 90) {
-            # Cap at 90% until actually done
-            updateProgressBar(session, "progress", value = current + 1)
-          }
-        }
-      }
-    })
   })
   
   # Generate time series plots
@@ -615,17 +794,21 @@ server <- function(input, output, session) {
     
     if (plot_type == "Similarity") {
       p <- ggplot(df, aes(x = round)) +
-        geom_line(aes(y = perceived_neighbor_similarity, color = "Perceived (Neighbor)"),
-                  size = 1) +
+        geom_line(
+          aes(y = perceived_neighbor_similarity, color = "Perceived (Neighbor)"),
+          linewidth = 1
+        ) +
         geom_line(aes(y = perceived_all_similarity, color = "Perceived (Global)"),
-                  size = 1) +
-        geom_line(aes(y = objective_neighbor_similarity, color = "Objective (Neighbor)"),
-                  size = 1) +
+                  linewidth = 1) +
+        geom_line(
+          aes(y = objective_neighbor_similarity, color = "Objective (Neighbor)"),
+          linewidth = 1
+        ) +
         geom_line(aes(y = objective_all_similarity, color = "Objective (Global)"),
-                  size = 1) +
+                  linewidth = 1) +
         geom_line(
           aes(y = revealed_neighbor_similarity, color = "Revealed (Neighbor)"),
-          size = 1,
+          linewidth = 1,
           linetype = "dashed"
         ) +
         geom_line(
@@ -680,7 +863,7 @@ server <- function(input, output, session) {
         ) +
         theme_minimal() +
         scale_color_brewer(palette = "Dark2") +
-        scale_y_continuous(sec.axis = sec_axis(~ . / 100, name = "Gini Coefficient"))
+        scale_y_continuous(sec.axis = sec_axis( ~ . / 100, name = "Gini Coefficient"))
     }
     
     return(p)
@@ -704,13 +887,24 @@ server <- function(input, output, session) {
            aes(x = agent, y = disclosures)) +
       geom_bar(stat = "identity", fill = "steelblue") +
       labs(title = "Number of Disclosures by Agent", x = "Agent ID", y = "Number of Disclosures") +
-      theme_minimal()
+      theme_minimal() +
+      scale_y_continuous(
+        breaks = function(x)
+          seq(0, ceiling(max(x)), by = 1)
+      )
   })
   
   # Agent disclosure table
   output$agent_disclosure_table <- renderDataTable({
     req(values$processed_results)
-    values$processed_results$agent_disclosures
+    DT::datatable(
+      values$processed_results$agent_disclosures,
+      options = list(
+        scrollY = "300px",
+        paging = FALSE,
+        scrollCollapse = TRUE
+      )
+    )
   })
   
   # Trait disclosure plot
@@ -734,10 +928,18 @@ server <- function(input, output, session) {
   # Raw results table
   output$results_table <- renderDataTable({
     req(values$processed_results)
-    values$processed_results$time_series
+    DT::datatable(
+      values$processed_results$time_series,
+      options = list(
+        scrollY = "550px",
+        paging = FALSE,
+        scrollCollapse = TRUE,
+        scrollX = TRUE
+      )
+    )
   })
   
-  # Network visualization
+  # Network visualization (STATIC)
   output$network_plot <- renderPlot({
     req(values$sim_results, input$network_round)
     
@@ -745,49 +947,52 @@ server <- function(input, output, session) {
     graph <- values$network_states[[round_idx]]
     
     # Get similarity matrix for the selected round
-    # In a real implementation, you would use the actual similarity matrix for each round
     perceived_similarity_matrix <- matrix(0, nrow = vcount(graph), ncol = vcount(graph))
     
     if (round_idx == values$processed_results$params$T) {
-      # Use final similarity matrix for last round
       perceived_similarity_matrix <- values$sim_results$rounds[[round_idx]]$similarity$perceived_similarity_matrix
     } else {
-      # For earlier rounds, we would need to store these (using final for demo)
       perceived_similarity_matrix <- values$sim_results$rounds[[round_idx]]$similarity$perceived_similarity_matrix
     }
     
-    # Color nodes based on selected attribute
     node_color_values <- numeric(vcount(graph))
     
     if (input$color_by == "Average Similarity") {
-      node_color_values <- rowMeans(perceived_similarity_matrix, na.rm = TRUE)
+      if (!is.null(perceived_similarity_matrix) &&
+          is.matrix(perceived_similarity_matrix) &&
+          nrow(perceived_similarity_matrix) == vcount(graph) &&
+          ncol(perceived_similarity_matrix) == vcount(graph)) {
+        
+        node_color_values <- rowMeans(perceived_similarity_matrix, na.rm = TRUE)
+      } else {
+        node_color_values <- rep(0, vcount(graph))
+        warning("Invalid or missing perceived similarity matrix; using zeros.")
+      }
+      
     } else if (input$color_by == "Type Disclosure Rate") {
       node_color_values <- values$processed_results$agent_disclosures$disclosures
+      
     } else if (input$color_by == "Degree") {
       node_color_values <- degree(graph)
     }
     
-    # Normalize values for color mapping
-    if (length(node_color_values) > 0 &&
-        diff(range(node_color_values)) > 0) {
+    if (length(node_color_values) > 0 && diff(range(node_color_values)) > 0) {
       node_colors <- (node_color_values - min(node_color_values)) /
         (max(node_color_values) - min(node_color_values))
     } else {
       node_colors <- rep(0.5, vcount(graph))
     }
     
-    # Get layout
-    layout <- layout_with_fr(graph)
+    mapped_colors <- heat.colors(100)[round(node_colors * 99) + 1]
     
-    # Set node size
+    layout <- layout_with_fr(graph)
     node_size <- input$node_size
     
-    # Plot network
     if (input$show_labels) {
       plot(
         graph,
         layout = layout,
-        vertex.color = heat.colors(100)[round(node_colors * 99) + 1],
+        vertex.color = mapped_colors,
         vertex.size = node_size * 3,
         vertex.label = 1:vcount(graph),
         vertex.label.cex = 0.8,
@@ -798,7 +1003,7 @@ server <- function(input, output, session) {
       plot(
         graph,
         layout = layout,
-        vertex.color = heat.colors(100)[round(node_colors * 99) + 1],
+        vertex.color = mapped_colors,
         vertex.size = node_size * 3,
         vertex.label = NA,
         edge.arrow.size = 0.5,
@@ -806,7 +1011,6 @@ server <- function(input, output, session) {
       )
     }
     
-    # Add legend for color scale
     legend_title <- switch(
       input$color_by,
       "Average Similarity" = "Avg. Similarity",
@@ -814,9 +1018,7 @@ server <- function(input, output, session) {
       "Degree" = "Degree"
     )
     
-    legend_values <- seq(min(node_color_values),
-                         max(node_color_values),
-                         length.out = 5)
+    legend_values <- seq(min(node_color_values), max(node_color_values), length.out = 5)
     legend_colors <- heat.colors(5)
     
     legend(
@@ -826,6 +1028,58 @@ server <- function(input, output, session) {
       title = legend_title
     )
   })
+  
+  # --- NEW CODE: Add reactiveVal for play/pause state ---
+  values$is_playing <- reactiveVal(FALSE)
+  
+  observeEvent(input$play_btn, {
+    values$is_playing(TRUE)
+  })
+  
+  observeEvent(input$pause_btn, {
+    values$is_playing(FALSE)
+  })
+  
+  # This observer increments anim_round while playing
+  observe({
+    if (values$is_playing()) {
+      invalidateLater(input$play_speed, session)
+      new_val <- input$anim_round + 1
+      if (!is.null(values$vis_nodes)) {
+        if (new_val <= length(values$vis_nodes)) {
+          updateSliderInput(session, "anim_round", value = new_val)
+        } else {
+          # Reached the final round
+          values$is_playing(FALSE)
+        }
+      }
+    }
+  })
+  # --- End NEW CODE ---
+  
+  # --- NEW CODE: visNetwork output for animation ---
+  output$network_vis <- renderVisNetwork({
+    req(values$vis_nodes, values$vis_edges, input$anim_round)
+    
+    r <- input$anim_round
+    if (r < 1 || r > length(values$vis_nodes)) {
+      # Safety check
+      return(visNetwork(nodes=data.frame(), edges=data.frame()))
+    }
+    
+    node_data <- values$vis_nodes[[r]]
+    edge_data <- values$vis_edges[[r]]
+    
+    # OPTIONAL: If you want the color_by logic to match your static plot,
+    # you could recalc color here. But for now we'll show the stored color.
+    
+    visNetwork(nodes = node_data, edges = edge_data, width = "100%", height = "600px") %>%
+      visNodes(fixed = TRUE) %>%  # fix positions
+      visEdges(smooth = FALSE) %>%
+      visOptions(highlightNearest = TRUE, nodesIdSelection = TRUE) %>%
+      visInteraction(dragNodes = FALSE, dragView = TRUE, zoomView = TRUE)
+  })
+  # --- End NEW CODE ---
   
   # Parameter sweep functionality
   observeEvent(input$run_sweep, {
@@ -882,7 +1136,6 @@ server <- function(input, output, session) {
       return(sweep_results)
     })
     
-    # Handle the promise
     promises::then(
       future_promise,
       onFulfilled = function(result) {
@@ -897,28 +1150,12 @@ server <- function(input, output, session) {
         updateProgressBar(session, "progress", value = 0)
       }
     )
-    
-    # Update progress periodically
-    observe({
-      invalidateLater(500)
-      if (values$is_running) {
-        if (future::resolved(future_promise)) {
-          updateProgressBar(session, "progress", value = 100)
-        } else {
-          current <- isolate(getCurrentProgressValue(session, "progress"))
-          if (current < 90) {
-            updateProgressBar(session, "progress", value = current + 2)
-          }
-        }
-      }
-    })
   })
   
   # Sweep results visualization
   output$sweep_plot <- renderPlot({
     req(values$sweep_results)
     
-    # Determine which parameters were swept
     param_cols <- names(values$sweep_results)[!(
       names(values$sweep_results) %in%
         c(
@@ -936,7 +1173,6 @@ server <- function(input, output, session) {
         )
     )]
     
-    # Choose primary and secondary parameters for plot
     if (length(param_cols) >= 2) {
       x_param <- param_cols[1]
       color_param <- param_cols[2]
@@ -944,7 +1180,6 @@ server <- function(input, output, session) {
       x_param <- param_cols[1]
       color_param <- "run"
     } else {
-      # Fallback if no parameters were swept
       return(
         ggplot() +
           annotate(
@@ -957,10 +1192,8 @@ server <- function(input, output, session) {
       )
     }
     
-    # Create plot data
     plot_data <- values$sweep_results
     
-    # Create faceted plot for similarity gap and polarization
     p <- ggplot(
       plot_data,
       aes_string(
@@ -971,17 +1204,15 @@ server <- function(input, output, session) {
       )
     ) +
       stat_summary(fun = mean, geom = "line") +
-      stat_summary(fun = mean,
-                   geom = "point",
-                   size = 3) +
+      stat_summary(fun = mean, geom = "point", size = 3) +
       stat_summary(
         fun.data = function(x) {
-          return(data.frame(ymin = mean(x) - sd(x), ymax = mean(x) + sd(x)))
+          data.frame(ymin = mean(x) - sd(x), ymax = mean(x) + sd(x))
         },
         geom = "errorbar",
         width = 0.2
       ) +
-      facet_wrap(~ "Similarity Gap") +
+      facet_wrap( ~ "Similarity Gap") +
       labs(title = "Parameter Sweep Results",
            x = gsub("_", " ", toupper(x_param)),
            y = "Value") +
@@ -995,7 +1226,6 @@ server <- function(input, output, session) {
   output$sweep_table <- renderDataTable({
     req(values$sweep_results)
     
-    # Average results across runs
     sweep_summary <- values$sweep_results %>%
       group_by_at(vars(-run, -starts_with("final_"), -disclosure_rate)) %>%
       summarize(
@@ -1011,7 +1241,7 @@ server <- function(input, output, session) {
         .groups = "drop"
       )
     
-    return(sweep_summary)
+    sweep_summary
   })
   
   # Download handlers
@@ -1040,6 +1270,14 @@ server <- function(input, output, session) {
       write.csv(values$sweep_results, file, row.names = FALSE)
     }
   )
+  
+  # Automatically run the simulation once the UI is fully loaded
+  session$onFlushed(function() {
+    if (!isolate(values$is_running)) {
+      shinyjs::delay(1000, shinyjs::click("run"))
+    }
+  }, once = TRUE)
+  
 }
 
 ###############################################################

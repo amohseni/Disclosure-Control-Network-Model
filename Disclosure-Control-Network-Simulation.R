@@ -7,6 +7,7 @@ library(igraph)
 library(dplyr)
 library(ggplot2)
 library(tidyr)
+library(visNetwork)
 
 ###############################################################
 # PART 1: NETWORK GENERATION AND INITIALIZATION
@@ -800,6 +801,11 @@ process_simulation_results <- function(results) {
   
   results$params$disclosure_metrics <- results$disclosure_metrics
   
+  # Round all numeric columns to *two* decimals
+  rounds_data <- as.data.frame(lapply(rounds_data, function(x) {
+    if (is.numeric(x)) round(x, 2) else x
+  }))
+  
   # Return processed data
   return(
     list(
@@ -1060,6 +1066,11 @@ process_sweep_results <- function(results, param_combinations) {
   
   # Convert list to data frame
   results_df <- do.call(rbind.data.frame, result_rows)
+  
+  # Round all numeric columns to *two* decimals
+  results_df <- as.data.frame(lapply(results_df, function(x) {
+    if (is.numeric(x)) round(x, 2) else x
+  }))
   
   return(results_df)
 }
