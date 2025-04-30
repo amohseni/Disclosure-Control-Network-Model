@@ -8,6 +8,7 @@ library(dplyr)
 library(ggplot2)
 library(tidyr)
 library(visNetwork)
+library(tibble)
 
 ###############################################################
 # PART 1: NETWORK GENERATION AND INITIALIZATION
@@ -453,7 +454,7 @@ compute_similarity_outcomes <- function(graph, beliefs, types, N, L) {
 calculate_polarization_metrics <- function(perceived_similarity_matrix) {
   # Flatten the similarity matrix (excluding self-similarities)
   flat_similarities <- perceived_similarity_matrix[lower.tri(perceived_similarity_matrix) |
-                                           upper.tri(perceived_similarity_matrix)]
+                                                     upper.tri(perceived_similarity_matrix)]
   
   # Calculate mean similarity
   mean_similarity <- mean(flat_similarities)
@@ -517,6 +518,9 @@ calculate_network_metrics <- function(graph) {
 #' @param L Length of type vector
 #' @return List of disclosure metrics
 calculate_disclosure_metrics <- function(disclosure_history, N, T, L) {
+  # Initialize per-agent, per-trait counts
+  agent_trait_counts <- matrix(0, nrow = N, ncol = L)
+  
   # Count total disclosures per agent
   agent_disclosures <- numeric(N)
   
@@ -524,17 +528,20 @@ calculate_disclosure_metrics <- function(disclosure_history, N, T, L) {
   trait_disclosures <- numeric(L)
   
   # Process disclosure history
-  for (t in 1:T) {
-    for (i in 1:N) {
+  for (t in seq_len(T)) {
+    for (i in seq_len(N)) {
       action <- disclosure_history[[t]][i]
-      
       if (action != "reveal nothing") {
+        # increment overall agent count
         agent_disclosures[i] <- agent_disclosures[i] + 1
         
-        # Extract which trait was revealed
+        # extract trait number
         trait <- extract_trait_number(action)
-        if (!is.na(trait)) {
-          trait_disclosures[trait] <- trait_disclosures[trait] + 1
+        if (!is.na(trait) && trait >= 1 && trait <= L) {
+          # increment trait count
+          trait_disclosures[trait]       <- trait_disclosures[trait] + 1
+          # === NEW: increment agent-trait count ===
+          agent_trait_counts[i, trait]   <- agent_trait_counts[i, trait] + 1
         }
       }
     }
@@ -543,14 +550,15 @@ calculate_disclosure_metrics <- function(disclosure_history, N, T, L) {
   # Calculate overall disclosure rate
   disclosure_rate <- sum(agent_disclosures) / (N * T)
   
-  # Calculate trait-specific disclosure rates
+  # Calculate per-trait disclosure rates
   trait_disclosure_rates <- trait_disclosures / (N * T)
   
   return(
     list(
       disclosure_rate = disclosure_rate,
       agent_disclosures = agent_disclosures,
-      trait_disclosure_rates = trait_disclosure_rates
+      trait_disclosure_rates = trait_disclosure_rates,
+      agent_trait_counts = agent_trait_counts
     )
   )
 }
@@ -789,28 +797,42 @@ process_simulation_results <- function(results) {
   )
   
   # Process disclosure data
-  disclosure_data <- data.frame(
-    agent = 1:results$params$N,
-    disclosures = results$disclosure_metrics$agent_disclosures
-  )
+  # pull N×L matrix from disclosure_metrics
+  mat <- results$disclosure_metrics$agent_trait_counts
   
+  # Name columns "1","2",…,"L" so pivoted trait values are numeric strings
+  colnames(mat) <- seq_len(ncol(mat))
+  
+  # pivot to long form: one row per (agent, trait)
+  agent_disclosure_df <- as.data.frame(mat, stringsAsFactors = FALSE) %>%
+    tibble::rownames_to_column("agent") %>%
+    tidyr::pivot_longer(cols = -agent,
+                        names_to  = "trait",
+                        values_to = "n_disclosed") %>%
+    dplyr::mutate(agent = as.integer(agent), trait = as.integer(trait))
+  
+  # Process trait disclosure data
   trait_disclosure_data <- data.frame(
     trait = 1:results$params$L,
     disclosure_rate = results$disclosure_metrics$trait_disclosure_rates
   )
   
+  # Save disclosure metrics
   results$params$disclosure_metrics <- results$disclosure_metrics
   
   # Round all numeric columns to *two* decimals
   rounds_data <- as.data.frame(lapply(rounds_data, function(x) {
-    if (is.numeric(x)) round(x, 2) else x
+    if (is.numeric(x))
+      round(x, 2)
+    else
+      x
   }))
   
   # Return processed data
   return(
     list(
       time_series = rounds_data,
-      agent_disclosures = disclosure_data,
+      agent_disclosures = agent_disclosure_df,
       trait_disclosures = trait_disclosure_data,
       params = results$params
     )
@@ -898,7 +920,7 @@ create_time_series_plots <- function(processed_results) {
     ) +
     theme_minimal() +
     scale_color_brewer(palette = "Dark2") +
-    scale_y_continuous(sec.axis = sec_axis( ~ . / 100, name = "Gini Coefficient"))
+    scale_y_continuous(sec.axis = sec_axis(~ . / 100, name = "Gini Coefficient"))
   
   return(
     list(
@@ -1069,7 +1091,10 @@ process_sweep_results <- function(results, param_combinations) {
   
   # Round all numeric columns to *two* decimals
   results_df <- as.data.frame(lapply(results_df, function(x) {
-    if (is.numeric(x)) round(x, 2) else x
+    if (is.numeric(x))
+      round(x, 2)
+    else
+      x
   }))
   
   return(results_df)

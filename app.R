@@ -17,15 +17,15 @@
 #     "shinyjs",
 #     "future",
 #     "promises",
-#     "shinyBS"
+#     "shinyBS",
+#     "RColorBrewer",
 #     "visNetwork"
 #   )
 # )
 
-# Load required libraries
+# Libraries & source
 library(shinydashboard)
 library(shiny)
-library(shinydashboard)
 library(igraph)
 library(dplyr)
 library(ggplot2)
@@ -35,9 +35,10 @@ library(DT)
 library(shinyjs)
 library(shinyBS)
 library(visNetwork)
-
 library(future)
 library(promises)
+library(RColorBrewer)
+
 
 # Set working directory to current file's folder
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
@@ -49,6 +50,19 @@ source("Disclosure-Control-Network-Simulation.R")
 ###############################################################
 # Helper Functions for UI Elements
 ###############################################################
+
+## Robust blue palette centered on #337ab7
+make_blues <- function(n) {
+  n <- as.integer(n)
+  if (is.na(n) || n < 1)
+    return("#337ab7")
+  if (n == 1)
+    return("#337ab7")
+  # Brewer provides up to 9; extend if needed
+  base_n <- min(max(n, 3), 9)
+  brewer_colors <- brewer.pal(base_n, "Blues")
+  grDevices::colorRampPalette(brewer_colors)(n)
+}
 
 # Define progress bar function for UI
 progressBar <- function(id,
@@ -168,7 +182,7 @@ ui <- dashboardPage(
         "Length of Type Vector (L):",
         min = 1,
         max = 10,
-        value = 2
+        value = 3
       ),
       helpText("Number of traits per agent."),
       sliderInput(
@@ -347,52 +361,53 @@ ui <- dashboardPage(
           ))
         )
       ),
-      tabItem(
-        tabName = "network",
-        fluidRow(
-          box(
-            title = "Controls (Static Plot)",
-            width = 3,
-            selectInput("network_round", "Round:", choices = ""),
-            selectInput(
-              "color_by",
-              "Color Nodes By:",
-              choices = c("Average Similarity", "Type Disclosure Rate", "Degree")
-            ),
-            sliderInput(
-              "node_size",
-              "Node Size:",
-              min = 1,
-              max = 10,
-              value = 3
-            ),
-            checkboxInput("show_labels", "Show Node Labels", FALSE)
+      tabItem(tabName = "network", fluidRow(
+        box(
+          title = "Controls (Static Plot)",
+          width = 3,
+          selectInput("network_round", "Round:", choices = ""),
+          selectInput(
+            "color_by",
+            "Color Nodes By:",
+            choices = c("Average Similarity", "Type Disclosure Rate", "Degree")
           ),
-          box(
-            title = "Network Graph (Static)",
-            width = 9,
-            plotOutput("network_plot", height = "600px")
-          )
+          sliderInput(
+            "node_size",
+            "Node Size:",
+            min = 1,
+            max = 10,
+            value = 3
+          ),
+          checkboxInput("show_labels", "Show Node Labels", FALSE)
         ),
-        br(),
-        fluidRow(
-          box(
-            title = "Animation Controls",
-            width = 3,
-            # A separate slider for the animated version
-            sliderInput("anim_round", "Animation Round:", min = 1, max = 1, value = 1),
-            actionButton("play_btn", "Play"),
-            actionButton("pause_btn", "Pause"),
-            numericInput("play_speed", "Speed (ms):", value = 500, min = 100),
-            helpText("Lower = faster animation")
-          ),
-          box(
-            title = "Animated Network (visNetwork)",
-            width = 9,
-            visNetworkOutput("network_vis", height = "600px")
-          )
+        box(
+          title = "Network Graph (Static)",
+          width = 9,
+          plotOutput("network_plot", height = "600px")
         )
-      ),
+      ), br(), fluidRow(
+        box(
+          title = "Animation Controls",
+          width = 3,
+          # A separate slider for the animated version
+          sliderInput(
+            "anim_round",
+            "Animation Round:",
+            min = 1,
+            max = 1,
+            value = 1
+          ),
+          actionButton("play_btn", "Play"),
+          actionButton("pause_btn", "Pause"),
+          numericInput("play_speed", "Speed (ms):", value = 500, min = 100),
+          helpText("Lower = faster animation")
+        ),
+        box(
+          title = "Animated Network (visNetwork)",
+          width = 9,
+          visNetworkOutput("network_vis", height = "600px")
+        )
+      )),
       tabItem(tabName = "about", box(
         title = "About",
         width = 12,
@@ -417,10 +432,14 @@ ui <- dashboardPage(
             12,
             br(),
             div(
-              style = "text-align: center;", actionButton("run_sweep",
-                                                          "Run Parameter Sweep",
-                                                          icon = icon("play"),
-                                                          style = "width: 180pt; box-sizing: border-box; color: #fff; background-color: #337ab7; margin: auto; display: block;")), 
+              style = "text-align: center;",
+              actionButton(
+                "run_sweep",
+                "Run Parameter Sweep",
+                icon = icon("play"),
+                style = "width: 180pt; box-sizing: border-box; color: #fff; background-color: #337ab7; margin: auto; display: block;"
+              )
+            ),
             br(),
             div(
               style = "text-align: center;",
@@ -487,12 +506,7 @@ ui <- dashboardPage(
         ),
         # ------------------ SWEEP OUTPUT TAB ------------------ #
         tabPanel("Sweep Output", fluidRow(column(
-          12,
-          div(
-            style = "text-align: center;",
-            downloadButton("download_sweep", "Download Results"),
-          ),
-          br()
+          12, div(style = "text-align: center;", downloadButton("download_sweep", "Download Results"), ), br()
         )), fluidRow(
           column(
             12,
@@ -723,8 +737,7 @@ server <- function(input, output, session) {
         })
         
         # Update round selector for network visualization
-        updateSelectInput(session, "network_round", 
-                          choices = setNames(1:params$T, paste("Round", 1:params$T)))
+        updateSelectInput(session, "network_round", choices = setNames(1:params$T, paste("Round", 1:params$T)))
         
         # --- NEW CODE: Prepare data for visNetwork animation ---
         # (1) Compute a single layout from the first round's graph
@@ -742,11 +755,9 @@ server <- function(input, output, session) {
           g_r <- values$network_states[[r]]
           
           # Create a data.frame for node positions (fixed)
-          node_positions <- data.frame(
-            id = 1:vcount(g_r),
-            x = coords[, 1],
-            y = coords[, 2]
-          )
+          node_positions <- data.frame(id = 1:vcount(g_r),
+                                       x = coords[, 1],
+                                       y = coords[, 2])
           
           # Minimal color assignment here; you can override in renderVisNetwork
           # For demonstration, let's color all nodes the same:
@@ -757,9 +768,9 @@ server <- function(input, output, session) {
           # Build edges from igraph
           edge_df <- get.data.frame(g_r, "edges")
           if (nrow(edge_df) > 0) {
-            colnames(edge_df)[1:2] <- c("from","to")
+            colnames(edge_df)[1:2] <- c("from", "to")
           } else {
-            edge_df <- data.frame(from=integer(0), to=integer(0))
+            edge_df <- data.frame(from = integer(0), to = integer(0))
           }
           edge_df$color <- "gray"
           edge_df$width <- 2
@@ -769,7 +780,13 @@ server <- function(input, output, session) {
         }
         
         # (3) Set up the anim_round slider range
-        updateSliderInput(session, "anim_round", min = 1, max = params$T, value = 1)
+        updateSliderInput(
+          session,
+          "anim_round",
+          min = 1,
+          max = params$T,
+          value = 1
+        )
         # --- End NEW CODE ---
         
         add_log("Simulation completed successfully!")
@@ -882,16 +899,19 @@ server <- function(input, output, session) {
   # Agent disclosure plot
   output$agent_disclosure_plot <- renderPlot({
     req(values$processed_results)
+    # now a long-form df with agent, trait, n_disclosed
+    df <- values$processed_results$agent_disclosures
+    L  <- values$processed_results$params$L
     
-    ggplot(values$processed_results$agent_disclosures,
-           aes(x = agent, y = disclosures)) +
-      geom_bar(stat = "identity", fill = "steelblue") +
-      labs(title = "Number of Disclosures by Agent", x = "Agent ID", y = "Number of Disclosures") +
-      theme_minimal() +
-      scale_y_continuous(
-        breaks = function(x)
-          seq(0, ceiling(max(x)), by = 1)
-      )
+    ggplot(df, aes(
+      x = factor(agent),
+      y = n_disclosed,
+      fill = factor(trait)
+    )) +
+      geom_bar(stat = "identity", position = "stack") +
+      scale_fill_manual("Trait", values = make_blues(L)) +
+      labs(title = "Disclosures by Agent & Trait", x = "Agent ID", y = "Number of Disclosures") +
+      theme_minimal()
   })
   
   # Agent disclosure table
@@ -903,27 +923,42 @@ server <- function(input, output, session) {
         scrollY = "300px",
         paging = FALSE,
         scrollCollapse = TRUE
-      )
+      ),
+      rownames = FALSE
     )
   })
   
   # Trait disclosure plot
   output$trait_disclosure_plot <- renderPlot({
     req(values$processed_results)
+    df <- values$processed_results$trait_disclosures
+    L  <- values$processed_results$params$L
     
-    ggplot(values$processed_results$trait_disclosures,
-           aes(x = trait, y = disclosure_rate)) +
-      geom_bar(stat = "identity", fill = "darkgreen") +
+    ggplot(df, aes(
+      x = factor(trait),
+      y = disclosure_rate,
+      fill = factor(trait)
+    )) +
+      geom_bar(stat = "identity") +
+      scale_fill_manual(values = make_blues(L), guide = "none") +
       labs(title = "Disclosure Rate by Trait", x = "Trait Number", y = "Disclosure Rate") +
-      theme_minimal() +
-      scale_x_continuous(breaks = 1:values$processed_results$params$L)
+      theme_minimal()
   })
   
   # Trait disclosure table
   output$trait_disclosure_table <- renderDataTable({
     req(values$processed_results)
-    values$processed_results$trait_disclosures
+    DT::datatable(
+      values$processed_results$trait_disclosures,
+      options = list(
+        scrollY = "300px",
+        paging = FALSE,
+        scrollCollapse = TRUE
+      ),
+      rownames = FALSE
+    )
   })
+  
   
   # Raw results table
   output$results_table <- renderDataTable({
@@ -962,7 +997,6 @@ server <- function(input, output, session) {
           is.matrix(perceived_similarity_matrix) &&
           nrow(perceived_similarity_matrix) == vcount(graph) &&
           ncol(perceived_similarity_matrix) == vcount(graph)) {
-        
         node_color_values <- rowMeans(perceived_similarity_matrix, na.rm = TRUE)
       } else {
         node_color_values <- rep(0, vcount(graph))
@@ -976,7 +1010,8 @@ server <- function(input, output, session) {
       node_color_values <- degree(graph)
     }
     
-    if (length(node_color_values) > 0 && diff(range(node_color_values)) > 0) {
+    if (length(node_color_values) > 0 &&
+        diff(range(node_color_values)) > 0) {
       node_colors <- (node_color_values - min(node_color_values)) /
         (max(node_color_values) - min(node_color_values))
     } else {
@@ -1018,7 +1053,9 @@ server <- function(input, output, session) {
       "Degree" = "Degree"
     )
     
-    legend_values <- seq(min(node_color_values), max(node_color_values), length.out = 5)
+    legend_values <- seq(min(node_color_values),
+                         max(node_color_values),
+                         length.out = 5)
     legend_colors <- heat.colors(5)
     
     legend(
@@ -1064,7 +1101,7 @@ server <- function(input, output, session) {
     r <- input$anim_round
     if (r < 1 || r > length(values$vis_nodes)) {
       # Safety check
-      return(visNetwork(nodes=data.frame(), edges=data.frame()))
+      return(visNetwork(nodes = data.frame(), edges = data.frame()))
     }
     
     node_data <- values$vis_nodes[[r]]
@@ -1073,11 +1110,19 @@ server <- function(input, output, session) {
     # OPTIONAL: If you want the color_by logic to match your static plot,
     # you could recalc color here. But for now we'll show the stored color.
     
-    visNetwork(nodes = node_data, edges = edge_data, width = "100%", height = "600px") %>%
+    visNetwork(
+      nodes = node_data,
+      edges = edge_data,
+      width = "100%",
+      height = "600px"
+    ) %>%
       visNodes(fixed = TRUE) %>%  # fix positions
       visEdges(smooth = FALSE) %>%
-      visOptions(highlightNearest = TRUE, nodesIdSelection = TRUE) %>%
-      visInteraction(dragNodes = FALSE, dragView = TRUE, zoomView = TRUE)
+      visOptions(highlightNearest = TRUE,
+                 nodesIdSelection = TRUE) %>%
+      visInteraction(dragNodes = FALSE,
+                     dragView = TRUE,
+                     zoomView = TRUE)
   })
   # --- End NEW CODE ---
   
@@ -1204,7 +1249,9 @@ server <- function(input, output, session) {
       )
     ) +
       stat_summary(fun = mean, geom = "line") +
-      stat_summary(fun = mean, geom = "point", size = 3) +
+      stat_summary(fun = mean,
+                   geom = "point",
+                   size = 3) +
       stat_summary(
         fun.data = function(x) {
           data.frame(ymin = mean(x) - sd(x), ymax = mean(x) + sd(x))
