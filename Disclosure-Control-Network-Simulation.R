@@ -614,14 +614,12 @@ calculate_welfare <- function(utilities) {
 #' @param beliefs Belief array
 #' @param types Type matrix
 #' @param params List of simulation parameters
-#' @param disclosure_type Type of disclosure ("selective" or "global")
 #' @param round Current round number
 #' @return List containing updated graph, beliefs, and outcomes
 run_simulation_round <- function(graph,
                                  beliefs,
                                  types,
                                  params,
-                                 disclosure_type,
                                  round) {
   N <- params$N
   L <- params$L
@@ -650,14 +648,14 @@ run_simulation_round <- function(graph,
       distances <- distances(graph)
     }
     
-    # Determine target agents for disclosure
-    if (disclosure_type == "selective") {
-      # Random sample of s agents, excluding the current agent
-      other_agents <- setdiff(1:N, i)
-      target_agents <- sample(other_agents, min(params$s, N - 1))
+    # Determine scale of disclosure
+    # Always use params$s as number of disclosures; 
+    # Global disclosure is s == N
+    other_agents <- setdiff(1:params$N, i)
+    if (params$s >= params$N) {
+      target_agents <- other_agents
     } else {
-      # Global disclosure to all agents except self
-      target_agents <- setdiff(1:N, i)
+      target_agents <- sample(other_agents, params$s)
     }
     
     # Decide best action
@@ -712,7 +710,6 @@ run_simulation <- function(params) {
   network_type <- params$network_type
   init_type <- params$init_type
   model_version <- params$model_version
-  disclosure_type <- params$disclosure_type
   p <- params$p
   k <- params$k
   b <- params$b
@@ -738,7 +735,7 @@ run_simulation <- function(params) {
   # Run simulation for T rounds
   for (t in 1:T) {
     # Run a single round
-    round_result <- run_simulation_round(graph, beliefs, types, params, disclosure_type, t)
+    round_result <- run_simulation_round(graph, beliefs, types, params, t)
     
     # Update graph and beliefs
     graph <- round_result$graph
@@ -1031,7 +1028,7 @@ run_parameter_sweep <- function(base_params, param_grid, num_runs) {
     row <- combos[i, ]
     
     # Merge base params with this combination
-    # Only use the names in param_grid (e.g. N, L, T, network_type, model_version, disclosure_type)
+    # Only use the names in param_grid (e.g. N, L, T, network_type, model_version)
     params <- base_params
     for (name in names(param_grid)) {
       params[[name]] <- row[[name]]
@@ -1059,7 +1056,6 @@ run_parameter_sweep <- function(base_params, param_grid, num_runs) {
     results_list[[i]] <- tibble(
       network_type   = params$network_type,
       model_version  = params$model_version,
-      disclosure_type= params$disclosure_type,
       delta          = params$delta,
       b              = params$b,
       run_id         = row$run_id,
@@ -1175,7 +1171,6 @@ example_params <- list(
   # Size of target subset for selective disclosure
   model_version = "static",
   # Network version: "static" or "dynamic"
-  disclosure_type = "selective" # Disclosure type: "selective" or "global"
 )
 
 
