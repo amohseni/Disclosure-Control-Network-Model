@@ -439,8 +439,15 @@ ui <- dashboardPage(
                   "Run Parameter Sweep",
                   icon = icon("play"),
                   style = "width: 180pt; box-sizing: border-box; color: #fff; background-color: #337ab7; margin: auto; display: block;"
-                )
-              ),
+                ),
+                br(),
+                progressBar("progress", value = 0, label = "0%"),
+                div(
+                  style = "text-align: center;",
+                  downloadButton("download_sweep", "Download Parameter Sweep Results"),
+                ),         
+                br(),                
+                div(style = "height: 100px; overflow-y: auto; border: 1px solid #ddd; padding: 4px;", verbatimTextOutput("status_log_sweep"))), 
               br(),
               div(
                 style = "text-align: center;",
@@ -554,17 +561,6 @@ ui <- dashboardPage(
               )
             ), column(9, plotlyOutput("violin_plotly", height = "1200px"))
           )),
-          # ------------------ SWEEP OUTPUT TAB ------------------ #
-          tabPanel("Sweep Output", fluidRow(column(
-            12, div(style = "text-align: center;", downloadButton("download_sweep", "Download Parameter Sweep Results"), ), br()
-          )), fluidRow(
-            column(
-              12,
-              plotOutput("sweep_plot", height = "400px"),
-              br(),
-              dataTableOutput("sweep_table")
-            )
-          ))
         )
       )
     )
@@ -585,6 +581,11 @@ server <- function(input, output, session) {
     is_running = FALSE,
     network_states = list()
   )
+  
+  # Parameter sweep status
+  output$status_log_sweep <- renderText({
+    paste(values$status_log, collapse = "\n")
+  })
   
   # Helper function to get network parameter based on selected model
   get_network_param <- function() {
@@ -1198,66 +1199,40 @@ server <- function(input, output, session) {
   
   # Parameter sweep functionality
   observeEvent(input$run_sweep, {
-    req(!values$is_running)
-    
-    values$is_running <- TRUE
-    add_log("Starting parameter sweep...")
-    
-    # Get base parameters
-    base_params <- get_params()
-    
-    # Create parameter grid based on selected parameters to sweep
-    param_grid <- list(
-      N             = seq(input$n_min, input$n_max, by = input$n_step),
-      L             = seq(input$l_min, input$l_max, by = input$l_step),
-      T             = seq(input$t_min, input$t_max, by = input$t_step),
-      network_type  = input$network_type_sweep,
-      model_version = input$model_version_sweep,
+    # snapshot reactives
+    num_runs_local    <- input$num_runs
+    base_params_local <- get_params()
+    param_grid_local  <- list(
+      N              = seq(input$n_min, input$n_max, by = input$n_step),
+      L              = seq(input$l_min, input$l_max, by = input$l_step),
+      T              = seq(input$t_min, input$t_max, by = input$t_step),
+      network_type   = input$network_type_sweep,
+      model_version  = input$model_version_sweep,
       disclosure_type = input$disclosure_type_sweep
     )
     
-    if ("network_type" %in% input$sweep_params) {
-      param_grid$network_type <- c("ER", "WS", "BA")
-    }
+    # Map the network types to codes:
+    net_map <- c(
+      "Erdős-Rényi"        = "ER",
+      "Watts-Strogatz"     = "WS",
+      "Barabási-Albert"    = "BA"
+    )
+    param_grid_local$network_type <- net_map[param_grid_local$network_type]
+    # -------------------------
     
-    if ("model_version" %in% input$sweep_params) {
-      param_grid$model_version <- c("static", "dynamic")
-    }
-    
-    if ("disclosure_type" %in% input$sweep_params) {
-      param_grid$disclosure_type <- c("selective", "global")
-    }
-    
-    if ("delta" %in% input$sweep_params) {
-      param_grid$delta <- c(0.2, 0.5, 0.8)
-    }
-    
-    if ("b" %in% input$sweep_params) {
-      param_grid$b <- c(0.6, 0.75, 0.9)
-    }
-    
-    # Check if any parameters selected
-    if (length(param_grid) == 0) {
-      add_log("Error: No parameters selected for sweep")
-      values$is_running <- FALSE
-      return()
-    }
-    
-    # Set up progress updates
+    # initialize UI state
+    add_log("🔔 run_sweep pressed!")
+    values$is_running <- TRUE
     updateProgressBar(session, "progress", value = 0)
     
-    # Run parameter sweep in background
+    # launch sweep in background
     future::plan(future::multisession)
-    
     future_promise <- future::future({
-      # (1) Cap T at 10 for speed
-      base_params$T <- min(base_params$T, 10)
-      
-      # (2) Run the sweep once, wiring in progress updates to the UI
+      base_params_local$T <- min(base_params_local$T, 10)
       run_parameter_sweep(
-        base_params,
-        param_grid,
-        input$num_runs,
+        base_params_local,
+        param_grid_local,
+        num_runs_local,
         progress_callback = function(pct) {
           updateProgressBar(session, "progress", value = pct)
         }
@@ -1278,6 +1253,8 @@ server <- function(input, output, session) {
         updateProgressBar(session, "progress", value = 0)
       }
     )
+  })
+  
   
   # Sweep results visualization
   output$sweep_plot <- renderPlot({

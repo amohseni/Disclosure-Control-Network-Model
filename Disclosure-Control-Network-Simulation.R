@@ -1003,41 +1003,38 @@ visualize_network <- function(graph, perceived_similarity_matrix) {
 #' @return Data frame of aggregated results
 # Adds an optional progress callback to report completion % to the UI
 run_parameter_sweep <- function(base_params, param_grid, num_runs, progress_callback = NULL) {
-  # 1. Expand and replicate grid of parameter combinations
-  combos <- expand.grid(param_grid, stringsAsFactors = FALSE)
-  combos <- combos %>%
-    slice(rep(seq_len(nrow(.)), each = num_runs)) %>%
-    mutate(run_id = rep(seq_len(num_runs), times = nrow(param_grid)))
+  # 1. Expand parameter grid
+  grid <- expand.grid(param_grid, stringsAsFactors = FALSE)
+  n_grid <- nrow(grid)
+  
+  # 2. Replicate each grid row num_runs times and assign run IDs
+  combos <- grid[rep(seq_len(n_grid), each = num_runs), , drop = FALSE]
+  combos$run_id <- rep(seq_len(num_runs), times = n_grid)
   
   total_iters <- nrow(combos)
   results_list <- vector("list", total_iters)
   
-  # 2. Iterate with progress reporting
+  # 3. Iterate through each combination, run simulation, extract final metrics
   for (i in seq_len(total_iters)) {
     row <- combos[i, ]
     
-    # Merge parameters
-    params <- modifyList(base_params, list(
-      network_type    = row$network_type,
-      model_version   = row$model_version,
-      disclosure_type = row$disclosure_type,
-      delta           = row$delta,
-      b               = row$b
-    ))
+    # Merge base params with this combination
+    # Only use the names in param_grid (e.g. N, L, T, network_type, model_version, disclosure_type)
+    params <- modifyList(base_params, as.list(row[names(param_grid)]))
     
-    # Run and process
-    sim <- run_simulation(params)
-    out <- process_simulation_results(sim)$time_series
-    last <- tail(out, 1)
+    # Run simulation and process results
+    sim  <- run_simulation(params)
+    out  <- process_simulation_results(sim)$time_series
+    last <- dplyr::last(out)
     
-    # Collect final metrics
+    # Collect final metrics for this run
     results_list[[i]] <- tibble(
-      network_type  = row$network_type,
-      model_version = row$model_version,
-      disclosure_type = row$disclosure_type,
-      delta         = row$delta,
-      b             = row$b,
-      run_id        = row$run_id,
+      network_type   = params$network_type,
+      model_version  = params$model_version,
+      disclosure_type= params$disclosure_type,
+      delta          = params$delta,
+      b              = params$b,
+      run_id         = row$run_id,
       final_perceived_neighbor_similarity = last$perceived_neighbor_similarity,
       final_perceived_all_similarity      = last$perceived_all_similarity,
       final_perceived_similarity_gap      = last$perceived_similarity_gap,
@@ -1047,12 +1044,12 @@ run_parameter_sweep <- function(base_params, param_grid, num_runs, progress_call
       final_revealed_neighbor_similarity  = last$revealed_neighbor_similarity,
       final_revealed_all_similarity       = last$revealed_all_similarity,
       final_revealed_similarity_gap       = last$revealed_similarity_gap,
-      final_variance    = last$variance,
-      final_bimodality  = last$bimodality,
-      final_clustering  = last$clustering,
-      final_modularity  = last$modularity,
-      final_mean_welfare= last$mean_welfare,
-      final_gini        = last$gini
+      final_variance                      = last$variance,
+      final_bimodality                    = last$bimodality,
+      final_clustering                    = last$clustering,
+      final_modularity                    = last$modularity,
+      final_mean_welfare                  = last$mean_welfare,
+      final_gini                          = last$gini
     )
     
     # Report progress if callback provided
@@ -1062,10 +1059,12 @@ run_parameter_sweep <- function(base_params, param_grid, num_runs, progress_call
     }
   }
   
-  # 3. Bind and return
+  # 4. Combine and return results
   results <- dplyr::bind_rows(results_list)
   return(results)
 }
+
+
 
 
 #' Process sweep results into a flat data frame
@@ -1157,18 +1156,6 @@ example_params <- list(
   disclosure_type = "selective" # Disclosure type: "selective" or "global"
 )
 
-# # Run a single simulation (uncomment to run)
-# sim_results <- run_simulation(example_params)
-# processed_results <- process_simulation_results(sim_results)
-# plots <- create_time_series_plots(processed_results)
-#
-# # Example parameter sweep (uncomment to run)
-# param_grid <- list(
-#   disclosure_type = c("selective", "global"),
-#   model_version = c("static", "dynamic")
-# )
-# sweep_results <- run_parameter_sweep(example_params, param_grid, num_runs = 2)
-# lapply(sweep_results, function(x) if (is.numeric(x)) round(x, 2) else x)
 
 ###############################################################
 # END OF CODE
