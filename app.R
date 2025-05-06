@@ -65,71 +65,6 @@ make_blues <- function(n) {
   grDevices::colorRampPalette(brewer_colors)(n)
 }
 
-# Define progress bar function for UI
-progressBar <- function(id,
-                        value = 0,
-                        label = NULL,
-                        color = "primary",
-                        display_pct = TRUE) {
-  value <- max(0, min(100, value))
-  label <- if (!is.null(label))
-    label
-  else if (display_pct)
-    paste0(value, "%")
-  else
-    ""
-  
-  div(
-    class = "progress",
-    div(
-      class = paste0("progress-bar bg-", color),
-      id = id,
-      role = "progressbar",
-      style = paste0("width: ", value, "%;"),
-      `aria-valuenow` = value,
-      `aria-valuemin` = 0,
-      `aria-valuemax` = 100,
-      label
-    )
-  )
-}
-
-# Helper function to get current progress value
-getCurrentProgressValue <- function(session, id) {
-  progress_str <- session$sendCustomMessage("shinyjs-getValueFromEl",
-                                            list(id = id, prop = "aria-valuenow"))
-  if (is.null(progress_str) || progress_str == "")
-    return(0)
-  as.numeric(progress_str)
-}
-
-# Function to update progress bar
-updateProgressBar <- function(session,
-                              id,
-                              value = NULL,
-                              label = NULL,
-                              color = NULL) {
-  message <- list(id = id)
-  
-  if (!is.null(value)) {
-    value <- max(0, min(100, value))
-    message$style <- paste0("width: ", value, "%;")
-    message$`aria-valuenow` <- value
-    if (is.null(label))
-      message$text <- paste0(value, "%")
-  }
-  
-  if (!is.null(label)) {
-    message$text <- label
-  }
-  
-  if (!is.null(color)) {
-    message$class <- list(remove = "bg-.*", add = paste0("bg-", color))
-  }
-  
-  session$sendInputMessage(id, message)
-}
-
 ###############################################################
 # UI DEFINITION
 ###############################################################
@@ -163,13 +98,6 @@ ui <- dashboardPage(
           icon = icon("tasks")
         ),
         menuItem("About", tabName = "about", icon = icon("info-circle"))
-      ),
-      actionButton("test_progress", "Test Progress Bar"),
-      shinyWidgets::progressBar(
-        id = "progress",
-        value = 0,
-        total = 100,
-        display_pct = TRUE
       ),
       actionButton(
         "run",
@@ -447,12 +375,6 @@ ui <- dashboardPage(
                 style = "width: 180pt; box-sizing: border-box; color: #fff; background-color: #337ab7; margin: auto; display: block;"
               ),
               br(),
-              shinyWidgets::progressBar(
-                id = "progress",
-                value = 0,
-                total = 100,
-                display_pct = TRUE
-              ),
               div(
                 style = "text-align: center;",
                 downloadButton("download_sweep", "Download Parameter Sweep Results"),
@@ -592,34 +514,6 @@ server <- function(input, output, session) {
     is_running = FALSE,
     network_states = list()
   )
-  
-  # Parameter sweep status
-  progress_val <- reactiveVal(0)  # For updating parameter sweep progress
-  output$status_log_sweep <- renderText({
-    paste(values$status_log, collapse = "\n")
-  })
-  # Parameter sweep progress bar functionality
-  observe({
-    invalidateLater(500, session)
-    val <- progress_val()
-    updateProgressBar(session, "progress", value = val)
-    
-    # DEBUG LOGGING
-    print(glue::glue("DEBUG: progress_val() = {val}"))
-    isolate({
-      values$status_log <- c(
-        values$status_log,
-        glue::glue("Progress observer triggered: current value = {val}")
-      )
-    })
-  })
-  # DEBUG
-  observeEvent(input$test_progress, {
-    for (i in 1:100) {
-      Sys.sleep(0.05)
-      progress_val(i)
-    }
-  })
     
   # Helper function to get network parameter based on selected model
   get_network_param <- function() {
@@ -799,9 +693,6 @@ server <- function(input, output, session) {
     params <- get_params()
     print(params)
     
-    # Initialize progress bar
-    updateProgressBar(session, "progress", value = 0)
-    
     # Run simulation in a separate R process to avoid blocking the UI
     future::plan(future::multisession)
     
@@ -882,16 +773,13 @@ server <- function(input, output, session) {
           max = params$T,
           value = 1
         )
-        # --- End NEW CODE ---
-        
+
         add_log("Simulation completed successfully!")
         values$is_running <- FALSE
-        updateProgressBar(session, "progress", value = 100)
       },
       onRejected = function(error) {
         add_log(paste("Error in simulation:", error$message))
         values$is_running <- FALSE
-        updateProgressBar(session, "progress", value = 0)
       }
     )
     
@@ -1222,7 +1110,7 @@ server <- function(input, output, session) {
   
  
   
-  # Parameter sweep functionality
+  ### Parameter sweep functionality
   observeEvent(input$run_sweep, {
     # snapshot reactives
     num_runs_local    <- input$num_runs
@@ -1249,8 +1137,7 @@ server <- function(input, output, session) {
     # initialize UI state
     add_log("🔔 run_sweep pressed!")
     values$is_running <- TRUE
-    updateProgressBar(session, "progress", value = 0)
-    
+
     # launch sweep in background
     future::plan(future::multisession)
     future_promise <- future::future({
@@ -1258,10 +1145,7 @@ server <- function(input, output, session) {
       run_parameter_sweep(
         base_params_local,
         param_grid_local,
-        num_runs_local,
-        progress_callback = function(pct) {
-          progress_val(pct)
-        }
+        num_runs_local
       )
     })
     
@@ -1271,12 +1155,10 @@ server <- function(input, output, session) {
         values$sweep_results <- sweep_df
         add_log("Parameter sweep completed successfully!")
         values$is_running <- FALSE
-        updateProgressBar(session, "progress", value = 100)
       },
       onRejected = function(error) {
         add_log(paste("Error in parameter sweep:", error$message))
         values$is_running <- FALSE
-        updateProgressBar(session, "progress", value = 0)
       }
     )
   })

@@ -1009,7 +1009,7 @@ visualize_network <- function(graph, perceived_similarity_matrix) {
 #' @param num_runs Number of runs per parameter combination
 #' @return Data frame of aggregated results
 # Adds an optional progress callback to report completion % to the UI
-run_parameter_sweep <- function(base_params, param_grid, num_runs, progress_callback = NULL) {
+run_parameter_sweep <- function(base_params, param_grid, num_runs) {
   
   # Dbug
   future::plan("sequential")
@@ -1079,13 +1079,6 @@ run_parameter_sweep <- function(base_params, param_grid, num_runs, progress_call
       final_mean_welfare                  = last$mean_welfare[[1]],
       final_gini                          = last$gini[[1]]
     )
-    
-    # Report progress if callback provided
-    if (!is.null(progress_callback)) {
-      pct <- floor((i / total_iters) * 100)
-      message(glue::glue("Progress callback invoked: {pct}%"))  # DEBUG
-      progress_callback(pct)
-    }
   }
   
   # Combine and return results
