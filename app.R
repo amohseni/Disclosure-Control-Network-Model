@@ -8,6 +8,7 @@
 #     "rstudioapi",
 #     "shiny",
 #     "shinydashboard",
+#     "shinywidgets",
 #     "igraph",
 #     "dplyr",
 #     "ggplot2",
@@ -162,6 +163,13 @@ ui <- dashboardPage(
           icon = icon("tasks")
         ),
         menuItem("About", tabName = "about", icon = icon("info-circle"))
+      ),
+      actionButton("test_progress", "Test Progress Bar"),
+      shinyWidgets::progressBar(
+        id = "progress",
+        value = 0,
+        total = 100,
+        display_pct = TRUE
       ),
       actionButton(
         "run",
@@ -422,147 +430,150 @@ ui <- dashboardPage(
           "This model simulates how changes in control over self-disclosure affects perceived similarity and polarization in social networks."
         )
       )),
-      tabItem(
-        tabName = "sweep",
-        tabBox(
-          width = 12,
-          # ------------------ SWEEP INPUT TAB ------------------ #
-          tabPanel(
-            "Sweep Input",
-            fluidRow(column(
-              12,
-              br(),
-              div(
-                style = "text-align: center;",
-                actionButton(
-                  "run_sweep",
-                  "Run Parameter Sweep",
-                  icon = icon("play"),
-                  style = "width: 180pt; box-sizing: border-box; color: #fff; background-color: #337ab7; margin: auto; display: block;"
-                ),
-                br(),
-                progressBar("progress", value = 0, label = "0%"),
-                div(
-                  style = "text-align: center;",
-                  downloadButton("download_sweep", "Download Parameter Sweep Results"),
-                ),         
-                br(),                
-                div(style = "height: 100px; overflow-y: auto; border: 1px solid #ddd; padding: 4px;", verbatimTextOutput("status_log_sweep"))), 
-              br(),
-              div(
-                style = "text-align: center;",
-                helpText("Select parameter ranges and discrete options for the sweep."),
-              ),
-              div(
-                style = "display: flex; flex-direction: column; align-items: center;",
-                numericInput(
-                  "num_runs",
-                  "Number of Runs per Combination:",
-                  value = 10,
-                  min = 1
-                )
-              )
-            )),
+      tabItem(tabName = "sweep", tabBox(
+        width = 12,
+        # ------------------ SWEEP INPUT TAB ------------------ #
+        tabPanel(
+          "Sweep Input",
+          fluidRow(column(
+            12,
             br(),
-            fluidRow(
-              column(
-                6,
-                h6("Number of Agents (N):"),
-                fluidRow(
-                  column(4, numericInput("n_min", "Min N:", 10, min = 1)),
-                  column(4, numericInput("n_max", "Max N:", 100, min = 1)),
-                  column(4, numericInput("n_step", "Increment:", 10, min = 1))
-                ),
-                
-                h6("Length of Type Vector (L):"),
-                fluidRow(
-                  column(4, numericInput("l_min", "Min L:", 1, min = 1)),
-                  column(4, numericInput("l_max", "Max L:", 10, min = 1)),
-                  column(4, numericInput("l_step", "Increment:", 1, min = 1))
-                ),
-                
-                h6("Number of Rounds (T):"),
-                fluidRow(
-                  column(4, numericInput("t_min", "Min T:", 10, min = 1)),
-                  column(4, numericInput("t_max", "Max T:", 50, min = 1)),
-                  column(4, numericInput("t_step", "Increment:", 10, min = 1))
-                )
+            div(
+              style = "text-align: center;",
+              actionButton(
+                "run_sweep",
+                "Run Parameter Sweep",
+                icon = icon("play"),
+                style = "width: 180pt; box-sizing: border-box; color: #fff; background-color: #337ab7; margin: auto; display: block;"
               ),
-              
-              column(
-                6,
-                checkboxGroupInput(
-                  "network_type_sweep",
-                  "Network Type(s):",
-                  choices = c("Erdős-Rényi", "Watts-Strogatz", "Barabási-Albert"),
-                  selected = c("Erdős-Rényi")
-                ),
-                checkboxGroupInput(
-                  "model_version_sweep",
-                  "Model Version:",
-                  choices = c("static", "dynamic"),
-                  selected = "static"
-                ),
-                checkboxGroupInput(
-                  "disclosure_type_sweep",
-                  "Disclosure Type:",
-                  choices = c("selective", "global"),
-                  selected = "selective"
-                )
+              br(),
+              shinyWidgets::progressBar(
+                id = "progress",
+                value = 0,
+                total = 100,
+                display_pct = TRUE
+              ),
+              div(
+                style = "text-align: center;",
+                downloadButton("download_sweep", "Download Parameter Sweep Results"),
+              ),
+              br(),
+              div(style = "height: 100px; overflow-y: auto; border: 1px solid #ddd; padding: 4px;", verbatimTextOutput("status_log_sweep"))
+            ),
+            br(),
+            div(
+              style = "text-align: center;",
+              helpText("Select parameter ranges and discrete options for the sweep."),
+            ),
+            div(
+              style = "display: flex; flex-direction: column; align-items: center;",
+              numericInput(
+                "num_runs",
+                "Number of Runs per Combination:",
+                value = 10,
+                min = 1
               )
             )
-          ),
-          tabPanel("Parameter Trends", fluidRow(
+          )),
+          br(),
+          fluidRow(
             column(
-              3,
-              selectInput(
-                "trend_x",
-                "X-axis parameter:",
-                choices = list(
-                  "Number of agents (N)" = "N",
-                  "Type-vector length (L)" = "L",
-                  "Number of rounds (T)" = "T",
-                  "Selective disclosure size (s)" = "s"
-                )
+              6,
+              h6("Number of Agents (N):"),
+              fluidRow(
+                column(4, numericInput("n_min", "Min N:", 10, min = 1)),
+                column(4, numericInput("n_max", "Max N:", 100, min = 1)),
+                column(4, numericInput("n_step", "Increment:", 10, min = 1))
               ),
-              uiOutput("trend_range_ui"),
-              radioButtons(
-                "trend_group",
-                "Metric group:",
-                choices = list("Similarity metrics" = "similarity", "Other metrics" = "other")
+              
+              h6("Length of Type Vector (L):"),
+              fluidRow(
+                column(4, numericInput("l_min", "Min L:", 1, min = 1)),
+                column(4, numericInput("l_max", "Max L:", 10, min = 1)),
+                column(4, numericInput("l_step", "Increment:", 1, min = 1))
+              ),
+              
+              h6("Number of Rounds (T):"),
+              fluidRow(
+                column(4, numericInput("t_min", "Min T:", 10, min = 1)),
+                column(4, numericInput("t_max", "Max T:", 50, min = 1)),
+                column(4, numericInput("t_step", "Increment:", 10, min = 1))
               )
             ),
-            column(9, plotlyOutput("trend_plotly", height = "600px"))
-          )),
-          tabPanel("Violin Comparisons", fluidRow(
+            
             column(
-              3,
+              6,
               checkboxGroupInput(
-                "violin_metrics",
-                "Select outcome measures:",
-                choices = c(
-                  "final_perceived_neighbor_similarity",
-                  "final_perceived_all_similarity",
-                  "final_perceived_similarity_gap",
-                  "final_objective_neighbor_similarity",
-                  "final_objective_all_similarity",
-                  "final_objective_similarity_gap",
-                  "final_revealed_neighbor_similarity",
-                  "final_revealed_all_similarity",
-                  "final_revealed_similarity_gap",
-                  "final_variance",
-                  "final_bimodality",
-                  "final_clustering",
-                  "final_modularity",
-                  "final_mean_welfare",
-                  "final_gini"
-                ),
-                selected = NULL
+                "network_type_sweep",
+                "Network Type(s):",
+                choices = c("Erdős-Rényi", "Watts-Strogatz", "Barabási-Albert"),
+                selected = c("Erdős-Rényi")
+              ),
+              checkboxGroupInput(
+                "model_version_sweep",
+                "Model Version:",
+                choices = c("static", "dynamic"),
+                selected = "static"
+              ),
+              checkboxGroupInput(
+                "disclosure_type_sweep",
+                "Disclosure Type:",
+                choices = c("selective", "global"),
+                selected = "selective"
               )
-            ), column(9, plotlyOutput("violin_plotly", height = "1200px"))
-          )),
-        )
-      )
+            )
+          )
+        ),
+        tabPanel("Parameter Trends", fluidRow(
+          column(
+            3,
+            selectInput(
+              "trend_x",
+              "X-axis parameter:",
+              choices = list(
+                "Number of agents (N)" = "N",
+                "Type-vector length (L)" = "L",
+                "Number of rounds (T)" = "T",
+                "Selective disclosure size (s)" = "s"
+              )
+            ),
+            uiOutput("trend_range_ui"),
+            radioButtons(
+              "trend_group",
+              "Metric group:",
+              choices = list("Similarity metrics" = "similarity", "Other metrics" = "other")
+            )
+          ),
+          column(9, plotlyOutput("trend_plotly", height = "600px"))
+        )),
+        tabPanel("Violin Comparisons", fluidRow(
+          column(
+            3,
+            checkboxGroupInput(
+              "violin_metrics",
+              "Select outcome measures:",
+              choices = c(
+                "final_perceived_neighbor_similarity",
+                "final_perceived_all_similarity",
+                "final_perceived_similarity_gap",
+                "final_objective_neighbor_similarity",
+                "final_objective_all_similarity",
+                "final_objective_similarity_gap",
+                "final_revealed_neighbor_similarity",
+                "final_revealed_all_similarity",
+                "final_revealed_similarity_gap",
+                "final_variance",
+                "final_bimodality",
+                "final_clustering",
+                "final_modularity",
+                "final_mean_welfare",
+                "final_gini"
+              ),
+              selected = NULL
+            )
+          ), column(9, plotlyOutput("violin_plotly", height = "1200px"))
+        )),
+      ))
     )
   )
 )
@@ -583,10 +594,33 @@ server <- function(input, output, session) {
   )
   
   # Parameter sweep status
+  progress_val <- reactiveVal(0)  # For updating parameter sweep progress
   output$status_log_sweep <- renderText({
     paste(values$status_log, collapse = "\n")
   })
-  
+  # Parameter sweep progress bar functionality
+  observe({
+    invalidateLater(500, session)
+    val <- progress_val()
+    updateProgressBar(session, "progress", value = val)
+    
+    # DEBUG LOGGING
+    print(glue::glue("DEBUG: progress_val() = {val}"))
+    isolate({
+      values$status_log <- c(
+        values$status_log,
+        glue::glue("Progress observer triggered: current value = {val}")
+      )
+    })
+  })
+  # DEBUG
+  observeEvent(input$test_progress, {
+    for (i in 1:100) {
+      Sys.sleep(0.05)
+      progress_val(i)
+    }
+  })
+    
   # Helper function to get network parameter based on selected model
   get_network_param <- function() {
     if (input$network_type == "ER") {
@@ -679,20 +713,15 @@ server <- function(input, output, session) {
     last_metrics <- values$processed_results$time_series[final_round, ]
     
     disclosure_rate <- values$processed_results$params$disclosure_metrics$disclosure_rate
-    if (length(disclosure_rate) == 0)
+    if (length(disclosure_rate) == 0) {
       disclosure_rate <- NA
+    }
     
     data.frame(
       Metric = c(
-        "Perceived Similarity (Neighbor)",
-        "Perceived Similarity (Global)",
-        "Perceived Similarity Gap",
-        "Objective Similarity (Neighbor)",
-        "Objective Similarity (Global)",
-        "Objective Similarity Gap",
-        "Revealed Similarity (Neighbor)",
-        "Revealed Similarity (Global)",
-        "Revealed Similarity Gap",
+        "Final Neighbor Similarity",
+        "Final Global Similarity",
+        "Similarity Gap",
         "Polarization (Variance)",
         "Clustering Coefficient",
         "Modularity",
@@ -701,15 +730,9 @@ server <- function(input, output, session) {
         "Disclosure Rate"
       ),
       Value = c(
-        last_metrics$perceived_neighbor_similarity,
-        last_metrics$perceived_all_similarity,
-        last_metrics$perceived_similarity_gap,
-        last_metrics$objective_neighbor_similarity,
-        last_metrics$objective_all_similarity,
-        last_metrics$objective_similarity_gap,
-        last_metrics$revealed_neighbor_similarity,
-        last_metrics$revealed_all_similarity,
-        last_metrics$revealed_similarity_gap,
+        last_metrics$neighbor_similarity,
+        last_metrics$all_similarity,
+        last_metrics$similarity_gap,
         last_metrics$variance,
         last_metrics$clustering,
         last_metrics$modularity,
@@ -952,7 +975,7 @@ server <- function(input, output, session) {
         ) +
         theme_minimal() +
         scale_color_brewer(palette = "Dark2") +
-        scale_y_continuous(sec.axis = sec_axis( ~ . / 100, name = "Gini Coefficient"))
+        scale_y_continuous(sec.axis = sec_axis(~ . / 100, name = "Gini Coefficient"))
     }
     
     return(p)
@@ -1197,6 +1220,8 @@ server <- function(input, output, session) {
   })
   
   
+ 
+  
   # Parameter sweep functionality
   observeEvent(input$run_sweep, {
     # snapshot reactives
@@ -1210,6 +1235,7 @@ server <- function(input, output, session) {
       model_version  = input$model_version_sweep,
       disclosure_type = input$disclosure_type_sweep
     )
+
     
     # Map the network types to codes:
     net_map <- c(
@@ -1234,7 +1260,7 @@ server <- function(input, output, session) {
         param_grid_local,
         num_runs_local,
         progress_callback = function(pct) {
-          updateProgressBar(session, "progress", value = pct)
+          progress_val(pct)
         }
       )
     })
@@ -1318,7 +1344,7 @@ server <- function(input, output, session) {
         geom = "errorbar",
         width = 0.2
       ) +
-      facet_wrap( ~ "Similarity Gap") +
+      facet_wrap(~ "Similarity Gap") +
       labs(title = "Parameter Sweep Results",
            x = gsub("_", " ", toupper(x_param)),
            y = "Value") +
@@ -1388,7 +1414,7 @@ server <- function(input, output, session) {
         ymax = mean + sd,
         fill = metric
       ), alpha = 0.2) +
-      facet_wrap( ~ model_version, scales = "free_x") +
+      facet_wrap(~ model_version, scales = "free_x") +
       labs(x = input$trend_x,
            y = "Mean ± SD",
            title = "Parameter Trends") +
@@ -1464,7 +1490,7 @@ server <- function(input, output, session) {
         ymax = mean + sd,
         fill = metric
       ), alpha = 0.2) +
-      facet_wrap( ~ model_version, scales = "free_x") +
+      facet_wrap(~ model_version, scales = "free_x") +
       labs(x = input$trend_x,
            y = "Mean ± SD",
            title = "Parameter Trends") +
@@ -1492,7 +1518,8 @@ server <- function(input, output, session) {
     filename = function() {
       paste0("parameter_sweep_", Sys.Date(), ".csv")
     },
-    contentType = "text/csv",           # ← add this line
+    contentType = "text/csv",
+    # ← add this line
     content = function(file) {
       cat("👉 download_sweep content() is running\n")
       # Wait until the sweep has run
@@ -1501,7 +1528,7 @@ server <- function(input, output, session) {
       write.csv(values$sweep_results, file, row.names = FALSE)
     }
   )
-
+  
   
   # Automatically run the simulation once the UI is fully loaded
   session$onFlushed(function() {

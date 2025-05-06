@@ -249,6 +249,11 @@ decide_best_action <- function(agent_id,
   # Calculate current utility without additional revelations
   current_utility <- calculate_utility(agent_id, distances, beliefs, types, L, delta)
   
+  # Skip disclosure evaluation if only one trait exists (already public)
+  if (L < 2) {
+    return(list(action = "reveal nothing", utility = current_utility))
+  }
+  
   best_action <- "reveal nothing"
   best_utility <- current_utility
   best_actions <- c(best_action)  # Track all actions tied for best
@@ -532,17 +537,19 @@ calculate_disclosure_metrics <- function(disclosure_history, N, T, L) {
     for (i in seq_len(N)) {
       action <- disclosure_history[[t]][i]
       if (action != "reveal nothing") {
-        # increment overall agent count
-        agent_disclosures[i] <- agent_disclosures[i] + 1
-        
-        # extract trait number
+        # Extract trait number safely
         trait <- extract_trait_number(action)
-        if (!is.na(trait) && trait >= 1 && trait <= L) {
-          # increment trait count
-          trait_disclosures[trait]       <- trait_disclosures[trait] + 1
-          # === NEW: increment agent-trait count ===
-          agent_trait_counts[i, trait]   <- agent_trait_counts[i, trait] + 1
+        
+        # Validate trait before doing anything with it
+        if (is.na(trait) || trait < 1 || trait > L) {
+          message(glue::glue("Invalid trait index at round {t}, agent {i}, action = '{action}', trait = '{trait}'"))
+          next  # skip this iteration
         }
+        
+        # If valid, update counts
+        agent_disclosures[i]     <- agent_disclosures[i] + 1
+        trait_disclosures[trait] <- trait_disclosures[trait] + 1
+        agent_trait_counts[i, trait] <- agent_trait_counts[i, trait] + 1
       }
     }
   }
@@ -1003,6 +1010,11 @@ visualize_network <- function(graph, perceived_similarity_matrix) {
 #' @return Data frame of aggregated results
 # Adds an optional progress callback to report completion % to the UI
 run_parameter_sweep <- function(base_params, param_grid, num_runs, progress_callback = NULL) {
+  
+  # Dbug
+  future::plan("sequential")
+  set.seed(42)
+  
   # 1. Expand parameter grid
   grid <- expand.grid(param_grid, stringsAsFactors = FALSE)
   n_grid <- nrow(grid)
@@ -1020,12 +1032,28 @@ run_parameter_sweep <- function(base_params, param_grid, num_runs, progress_call
     
     # Merge base params with this combination
     # Only use the names in param_grid (e.g. N, L, T, network_type, model_version, disclosure_type)
-    params <- modifyList(base_params, as.list(row[names(param_grid)]))
+    params <- base_params
+    for (name in names(param_grid)) {
+      params[[name]] <- row[[name]]
+    }    
+    cat("▶ combo", i, "params:", paste(names(params), params, sep="=", collapse=", "), "\n")
+    if (is.null(params$T) || params$T < 1) stop("Invalid T: must be ≥ 1")
     
     # Run simulation and process results
-    sim  <- run_simulation(params)
+    sim <- tryCatch({
+      run_simulation(params)
+    }, error = function(e) {
+      cat("Simulation failed for params:\n")
+      print(params)
+      cat("Error message:\n")
+      print(e$message)
+      stop("Aborting sweep due to simulation error.")
+    })
     out  <- process_simulation_results(sim)$time_series
-    last <- dplyr::last(out)
+    if (nrow(out) == 0) stop("❌ Time series output is empty!")
+    last <- out[nrow(out), , drop = FALSE]    
+    print(paste("Column names in `last`:", toString(names(last))))
+    
     
     # Collect final metrics for this run
     results_list[[i]] <- tibble(
@@ -1035,31 +1063,32 @@ run_parameter_sweep <- function(base_params, param_grid, num_runs, progress_call
       delta          = params$delta,
       b              = params$b,
       run_id         = row$run_id,
-      final_perceived_neighbor_similarity = last$perceived_neighbor_similarity,
-      final_perceived_all_similarity      = last$perceived_all_similarity,
-      final_perceived_similarity_gap      = last$perceived_similarity_gap,
-      final_objective_neighbor_similarity = last$objective_neighbor_similarity,
-      final_objective_all_similarity      = last$objective_all_similarity,
-      final_objective_similarity_gap      = last$objective_similarity_gap,
-      final_revealed_neighbor_similarity  = last$revealed_neighbor_similarity,
-      final_revealed_all_similarity       = last$revealed_all_similarity,
-      final_revealed_similarity_gap       = last$revealed_similarity_gap,
-      final_variance                      = last$variance,
-      final_bimodality                    = last$bimodality,
-      final_clustering                    = last$clustering,
-      final_modularity                    = last$modularity,
-      final_mean_welfare                  = last$mean_welfare,
-      final_gini                          = last$gini
+      final_perceived_neighbor_similarity = last$perceived_neighbor_similarity[[1]],
+      final_perceived_all_similarity      = last$perceived_all_similarity[[1]],
+      final_perceived_similarity_gap      = last$perceived_similarity_gap[[1]],
+      final_objective_neighbor_similarity = last$objective_neighbor_similarity[[1]],
+      final_objective_all_similarity      = last$objective_all_similarity[[1]],
+      final_objective_similarity_gap      = last$objective_similarity_gap[[1]],
+      final_revealed_neighbor_similarity  = last$revealed_neighbor_similarity[[1]],
+      final_revealed_all_similarity       = last$revealed_all_similarity[[1]],
+      final_revealed_similarity_gap       = last$revealed_similarity_gap[[1]],
+      final_variance                      = last$variance[[1]],
+      final_bimodality                    = last$bimodality[[1]],
+      final_clustering                    = last$clustering[[1]],
+      final_modularity                    = last$modularity[[1]],
+      final_mean_welfare                  = last$mean_welfare[[1]],
+      final_gini                          = last$gini[[1]]
     )
     
     # Report progress if callback provided
     if (!is.null(progress_callback)) {
       pct <- floor((i / total_iters) * 100)
+      message(glue::glue("Progress callback invoked: {pct}%"))  # DEBUG
       progress_callback(pct)
     }
   }
   
-  # 4. Combine and return results
+  # Combine and return results
   results <- dplyr::bind_rows(results_list)
   return(results)
 }
@@ -1104,7 +1133,7 @@ process_sweep_results <- function(results, param_combinations) {
         final_modularity = final_round$modularity,
         final_welfare = final_round$mean_welfare,
         final_gini = final_round$gini,
-        disclosure_rate = results[[i]]$runs[[run]]$params$disclosure_metrics$disclosure_rate
+        # disclosure_rate = results[[i]]$runs[[run]]$params$disclosure_metrics$disclosure_rate
       )
       
       result_rows[[length(result_rows) + 1]] <- row
