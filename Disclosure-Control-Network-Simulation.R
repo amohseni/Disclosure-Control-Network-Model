@@ -1007,6 +1007,7 @@ visualize_network <- function(graph, perceived_similarity_matrix) {
 #' @return Data frame of aggregated results
 # Adds an optional progress callback to report completion % to the UI
 <<<<<<< HEAD
+<<<<<<< HEAD
 run_parameter_sweep <- function(base_params, param_grid, num_runs) {
   
   # Dbug
@@ -1021,12 +1022,17 @@ run_parameter_sweep <- function(base_params, param_grid, num_runs) {
   combos <- grid[rep(seq_len(n_grid), each = num_runs), , drop = FALSE]
   combos$run_id <- rep(seq_len(num_runs), times = n_grid)
 =======
+=======
+>>>>>>> parent of 336fb28 (Run param sweep debug)
 run_parameter_sweep <- function(base_params, param_grid, num_runs, progress_callback = NULL) {
   # 1. Expand and replicate grid of parameter combinations
   combos <- expand.grid(param_grid, stringsAsFactors = FALSE)
   combos <- combos %>%
     slice(rep(seq_len(nrow(.)), each = num_runs)) %>%
     mutate(run_id = rep(seq_len(num_runs), times = nrow(param_grid)))
+<<<<<<< HEAD
+>>>>>>> parent of 336fb28 (Run param sweep debug)
+=======
 >>>>>>> parent of 336fb28 (Run param sweep debug)
   
   total_iters <- nrow(combos)
@@ -1036,6 +1042,7 @@ run_parameter_sweep <- function(base_params, param_grid, num_runs, progress_call
   for (i in seq_len(total_iters)) {
     row <- combos[i, ]
     
+<<<<<<< HEAD
 <<<<<<< HEAD
     # Merge base params with this combination
     # Only use the names in param_grid (e.g. N, L, T, network_type, model_version)
@@ -1101,6 +1108,24 @@ run_parameter_sweep <- function(base_params, param_grid, num_runs, progress_call
       final_mean_welfare                  = last$mean_welfare[[1]],
       final_gini                          = last$gini[[1]]
 =======
+=======
+    # Merge parameters
+    params <- modifyList(base_params, list(
+      network_type    = row$network_type,
+      model_version   = row$model_version,
+      disclosure_type = row$disclosure_type,
+      delta           = row$delta,
+      b               = row$b
+    ))
+    
+    # Run and process
+    sim <- run_simulation(params)
+    out <- process_simulation_results(sim)$time_series
+    last <- tail(out, 1)
+    
+    # Collect final metrics
+    results_list[[i]] <- tibble(
+>>>>>>> parent of 336fb28 (Run param sweep debug)
       network_type  = row$network_type,
       model_version = row$model_version,
       disclosure_type = row$disclosure_type,
@@ -1122,12 +1147,19 @@ run_parameter_sweep <- function(base_params, param_grid, num_runs, progress_call
       final_modularity  = last$modularity,
       final_mean_welfare= last$mean_welfare,
       final_gini        = last$gini
+<<<<<<< HEAD
+>>>>>>> parent of 336fb28 (Run param sweep debug)
+=======
 >>>>>>> parent of 336fb28 (Run param sweep debug)
     )
   }
   
 <<<<<<< HEAD
+<<<<<<< HEAD
   # Combine and return results
+=======
+  # 3. Bind and return
+>>>>>>> parent of 336fb28 (Run param sweep debug)
 =======
   # 3. Bind and return
 >>>>>>> parent of 336fb28 (Run param sweep debug)

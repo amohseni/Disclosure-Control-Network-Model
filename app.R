@@ -1136,6 +1136,7 @@ server <- function(input, output, session) {
   observeEvent(input$run_sweep, {
     req(!values$is_running)
 <<<<<<< HEAD
+<<<<<<< HEAD
     values$is_running <- TRUE
     add_log("🔔 run_sweep pressed!")
     
@@ -1224,6 +1225,8 @@ server <- function(input, output, session) {
   })
   
 =======
+=======
+>>>>>>> parent of 336fb28 (Run param sweep debug)
     
     values$is_running <- TRUE
     add_log("Starting parameter sweep...")
@@ -1303,6 +1306,9 @@ server <- function(input, output, session) {
         updateProgressBar(session, "progress", value = 0)
       }
     )
+<<<<<<< HEAD
+>>>>>>> parent of 336fb28 (Run param sweep debug)
+=======
 >>>>>>> parent of 336fb28 (Run param sweep debug)
   
   # Sweep results visualization
