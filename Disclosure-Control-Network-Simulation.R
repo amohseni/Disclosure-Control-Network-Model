@@ -920,7 +920,7 @@ create_time_series_plots <- function(processed_results) {
     ) +
     theme_minimal() +
     scale_color_brewer(palette = "Dark2") +
-    scale_y_continuous(sec.axis = sec_axis(~ . / 100, name = "Gini Coefficient"))
+    scale_y_continuous(sec.axis = sec_axis( ~ . / 100, name = "Gini Coefficient"))
   
   return(
     list(
@@ -1001,46 +1001,72 @@ visualize_network <- function(graph, perceived_similarity_matrix) {
 #' @param param_grid List of parameter grids to sweep
 #' @param num_runs Number of runs per parameter combination
 #' @return Data frame of aggregated results
-run_parameter_sweep <- function(base_params, param_grid, num_runs = 3) {
-  # Create all combinations of parameters
-  param_combinations <- expand.grid(param_grid)
+# Adds an optional progress callback to report completion % to the UI
+run_parameter_sweep <- function(base_params, param_grid, num_runs, progress_callback = NULL) {
+  # 1. Expand and replicate grid of parameter combinations
+  combos <- expand.grid(param_grid, stringsAsFactors = FALSE)
+  combos <- combos %>%
+    slice(rep(seq_len(nrow(.)), each = num_runs)) %>%
+    mutate(run_id = rep(seq_len(num_runs), times = nrow(param_grid)))
   
-  # Initialize results storage
-  num_combinations <- nrow(param_combinations)
-  results <- list()
+  total_iters <- nrow(combos)
+  results_list <- vector("list", total_iters)
   
-  # Run simulations for each parameter combination
-  for (i in 1:num_combinations) {
-    cat(sprintf(
-      "Processing parameter combination %d of %d\n",
-      i,
-      num_combinations
+  # 2. Iterate with progress reporting
+  for (i in seq_len(total_iters)) {
+    row <- combos[i, ]
+    
+    # Merge parameters
+    params <- modifyList(base_params, list(
+      network_type    = row$network_type,
+      model_version   = row$model_version,
+      disclosure_type = row$disclosure_type,
+      delta           = row$delta,
+      b               = row$b
     ))
     
-    # Create current parameter set
-    current_params <- base_params
-    for (param_name in names(param_combinations)) {
-      current_params[[param_name]] <- param_combinations[i, param_name]
-    }
+    # Run and process
+    sim <- run_simulation(params)
+    out <- process_simulation_results(sim)$time_series
+    last <- tail(out, 1)
     
-    # Run multiple simulations with these parameters
-    combination_results <- list()
-    for (run in 1:num_runs) {
-      cat(sprintf("  Run %d of %d\n", run, num_runs))
-      sim_result <- run_simulation(current_params)
-      processed <- process_simulation_results(sim_result)
-      combination_results[[run]] <- processed
-    }
+    # Collect final metrics
+    results_list[[i]] <- tibble(
+      network_type  = row$network_type,
+      model_version = row$model_version,
+      disclosure_type = row$disclosure_type,
+      delta         = row$delta,
+      b             = row$b,
+      run_id        = row$run_id,
+      final_perceived_neighbor_similarity = last$perceived_neighbor_similarity,
+      final_perceived_all_similarity      = last$perceived_all_similarity,
+      final_perceived_similarity_gap      = last$perceived_similarity_gap,
+      final_objective_neighbor_similarity = last$objective_neighbor_similarity,
+      final_objective_all_similarity      = last$objective_all_similarity,
+      final_objective_similarity_gap      = last$objective_similarity_gap,
+      final_revealed_neighbor_similarity  = last$revealed_neighbor_similarity,
+      final_revealed_all_similarity       = last$revealed_all_similarity,
+      final_revealed_similarity_gap       = last$revealed_similarity_gap,
+      final_variance    = last$variance,
+      final_bimodality  = last$bimodality,
+      final_clustering  = last$clustering,
+      final_modularity  = last$modularity,
+      final_mean_welfare= last$mean_welfare,
+      final_gini        = last$gini
+    )
     
-    # Store aggregated results
-    results[[i]] <- list(params = current_params, runs = combination_results)
+    # Report progress if callback provided
+    if (!is.null(progress_callback)) {
+      pct <- floor((i / total_iters) * 100)
+      progress_callback(pct)
+    }
   }
   
-  # Process and flatten results for analysis
-  flat_results <- process_sweep_results(results, param_combinations)
-  
-  return(flat_results)
+  # 3. Bind and return
+  results <- dplyr::bind_rows(results_list)
+  return(results)
 }
+
 
 #' Process sweep results into a flat data frame
 #'
