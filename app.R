@@ -8,7 +8,6 @@
 #     "rstudioapi",
 #     "shiny",
 #     "shinydashboard",
-#     "shinywidgets",
 #     "igraph",
 #     "dplyr",
 #     "ggplot2",
@@ -63,6 +62,71 @@ make_blues <- function(n) {
   base_n <- min(max(n, 3), 9)
   brewer_colors <- brewer.pal(base_n, "Blues")
   grDevices::colorRampPalette(brewer_colors)(n)
+}
+
+# Define progress bar function for UI
+progressBar <- function(id,
+                        value = 0,
+                        label = NULL,
+                        color = "primary",
+                        display_pct = TRUE) {
+  value <- max(0, min(100, value))
+  label <- if (!is.null(label))
+    label
+  else if (display_pct)
+    paste0(value, "%")
+  else
+    ""
+  
+  div(
+    class = "progress",
+    div(
+      class = paste0("progress-bar bg-", color),
+      id = id,
+      role = "progressbar",
+      style = paste0("width: ", value, "%;"),
+      `aria-valuenow` = value,
+      `aria-valuemin` = 0,
+      `aria-valuemax` = 100,
+      label
+    )
+  )
+}
+
+# Helper function to get current progress value
+getCurrentProgressValue <- function(session, id) {
+  progress_str <- session$sendCustomMessage("shinyjs-getValueFromEl",
+                                            list(id = id, prop = "aria-valuenow"))
+  if (is.null(progress_str) || progress_str == "")
+    return(0)
+  as.numeric(progress_str)
+}
+
+# Function to update progress bar
+updateProgressBar <- function(session,
+                              id,
+                              value = NULL,
+                              label = NULL,
+                              color = NULL) {
+  message <- list(id = id)
+  
+  if (!is.null(value)) {
+    value <- max(0, min(100, value))
+    message$style <- paste0("width: ", value, "%;")
+    message$`aria-valuenow` <- value
+    if (is.null(label))
+      message$text <- paste0(value, "%")
+  }
+  
+  if (!is.null(label)) {
+    message$text <- label
+  }
+  
+  if (!is.null(color)) {
+    message$class <- list(remove = "bg-.*", add = paste0("bg-", color))
+  }
+  
+  session$sendInputMessage(id, message)
 }
 
 ###############################################################
@@ -140,14 +204,6 @@ ui <- dashboardPage(
       helpText("Determines how rapidly influence decays with network distance.")
     ),
     # Right column: Network and simulation parameters (excluding decay factor and run button)
-    sliderInput(
-      "disclosure_pct",
-      "Disclosure Size (% of Population):",
-      min = 0,
-      max = 100,
-      value = 50,
-      step = 1
-    ),
     column(
       6,
       style = "padding-left: 5px;",
@@ -236,6 +292,20 @@ ui <- dashboardPage(
       ),
       helpText(
         "Choose whether the network remains static or evolves dynamically."
+      ),
+      selectInput(
+        "disclosure_type",
+        "Disclosure Type:",
+        choices = c("Selective" = "selective", "Global" = "global")
+      ),
+      helpText("Determine if disclosures are made selectively or globally."),
+      
+      conditionalPanel(
+        condition = "input.disclosure_type == 'selective'",
+        uiOutput("s_ui"),
+        helpText(
+          "Selective Disclosure Size: Number of agents that reveal their traits."
+        )
       )
     )
   )),
@@ -351,7 +421,6 @@ ui <- dashboardPage(
           "This model simulates how changes in control over self-disclosure affects perceived similarity and polarization in social networks."
         )
       )),
-<<<<<<< HEAD
       tabItem(tabName = "sweep", tabBox(
         width = 12,
         # ------------------ SWEEP INPUT TAB ------------------ #
@@ -359,42 +428,6 @@ ui <- dashboardPage(
           "Sweep Input",
           fluidRow(column(
             12,
-=======
-      tabItem(
-        tabName = "sweep",
-        tabBox(
-          width = 12,
-          # ------------------ SWEEP INPUT TAB ------------------ #
-          tabPanel(
-            "Sweep Input",
-            fluidRow(column(
-              12,
-              br(),
-              div(
-                style = "text-align: center;",
-                actionButton(
-                  "run_sweep",
-                  "Run Parameter Sweep",
-                  icon = icon("play"),
-                  style = "width: 180pt; box-sizing: border-box; color: #fff; background-color: #337ab7; margin: auto; display: block;"
-                )
-              ),
-              br(),
-              div(
-                style = "text-align: center;",
-                helpText("Select parameter ranges and discrete options for the sweep."),
-              ),
-              div(
-                style = "display: flex; flex-direction: column; align-items: center;",
-                numericInput(
-                  "num_runs",
-                  "Number of Runs per Combination:",
-                  value = 10,
-                  min = 1
-                )
-              )
-            )),
->>>>>>> parent of 336fb28 (Run param sweep debug)
             br(),
             div(
               style = "text-align: center;",
@@ -404,16 +437,14 @@ ui <- dashboardPage(
                 icon = icon("play"),
                 style = "width: 180pt; box-sizing: border-box; color: #fff; background-color: #337ab7; margin: auto; display: block;"
               ),
-              div(
-                style = "margin-top: 20px;",
-                h6("Status Log"),
-                div(style = "height: 100px; overflow-y: auto; padding-top: 10px", verbatimTextOutput("status_log"))
-              ),
               br(),
+              progressBar("progress", value = 0, label = "0%"),
               div(
                 style = "text-align: center;",
                 downloadButton("download_sweep", "Download Parameter Sweep Results"),
               ),
+              br(),
+              div(style = "height: 100px; overflow-y: auto; border: 1px solid #ddd; padding: 4px;", verbatimTextOutput("status_log_sweep"))
             ),
             br(),
             div(
@@ -437,22 +468,22 @@ ui <- dashboardPage(
               h6("Number of Agents (N):"),
               fluidRow(
                 column(4, numericInput("n_min", "Min N:", 10, min = 1)),
-                column(4, numericInput("n_max", "Max N:", 50, min = 1)),
-                column(4, numericInput("n_step", "Increment:", 20, min = 1))
+                column(4, numericInput("n_max", "Max N:", 100, min = 1)),
+                column(4, numericInput("n_step", "Increment:", 10, min = 1))
               ),
               
               h6("Length of Type Vector (L):"),
               fluidRow(
                 column(4, numericInput("l_min", "Min L:", 1, min = 1)),
-                column(4, numericInput("l_max", "Max L:", 5, min = 1)),
-                column(4, numericInput("l_step", "Increment:", 2, min = 1))
+                column(4, numericInput("l_max", "Max L:", 10, min = 1)),
+                column(4, numericInput("l_step", "Increment:", 1, min = 1))
               ),
               
               h6("Number of Rounds (T):"),
               fluidRow(
                 column(4, numericInput("t_min", "Min T:", 10, min = 1)),
                 column(4, numericInput("t_max", "Max T:", 50, min = 1)),
-                column(4, numericInput("t_step", "Increment:", 20, min = 1))
+                column(4, numericInput("t_step", "Increment:", 10, min = 1))
               )
             ),
             
@@ -469,8 +500,13 @@ ui <- dashboardPage(
                 "Model Version:",
                 choices = c("static", "dynamic"),
                 selected = "static"
+              ),
+              checkboxGroupInput(
+                "disclosure_type_sweep",
+                "Disclosure Type:",
+                choices = c("selective", "global"),
+                selected = "selective"
               )
-<<<<<<< HEAD
             )
           )
         ),
@@ -484,7 +520,7 @@ ui <- dashboardPage(
                 "Number of agents (N)" = "N",
                 "Type-vector length (L)" = "L",
                 "Number of rounds (T)" = "T",
-                "Disclosure size (s)" = "s"
+                "Selective disclosure size (s)" = "s"
               )
             ),
             uiOutput("trend_range_ui"),
@@ -524,23 +560,6 @@ ui <- dashboardPage(
           ), column(9, plotlyOutput("violin_plotly", height = "1200px"))
         )),
       ))
-=======
-            ), column(9, plotlyOutput("violin_plotly", height = "1200px"))
-          )),
-          # ------------------ SWEEP OUTPUT TAB ------------------ #
-          tabPanel("Sweep Output", fluidRow(column(
-            12, div(style = "text-align: center;", downloadButton("download_sweep", "Download Parameter Sweep Results"), ), br()
-          )), fluidRow(
-            column(
-              12,
-              plotOutput("sweep_plot", height = "400px"),
-              br(),
-              dataTableOutput("sweep_table")
-            )
-          ))
-        )
-      )
->>>>>>> parent of 336fb28 (Run param sweep debug)
     )
   )
 )
@@ -559,6 +578,11 @@ server <- function(input, output, session) {
     is_running = FALSE,
     network_states = list()
   )
+  
+  # Parameter sweep status
+  output$status_log_sweep <- renderText({
+    paste(values$status_log, collapse = "\n")
+  })
   
   # Helper function to get network parameter based on selected model
   get_network_param <- function() {
@@ -580,30 +604,37 @@ server <- function(input, output, session) {
     }
   }
   
-  
   # Function to collect all parameters from UI inputs
   get_params <- function() {
+    # Base parameters
     params <- list(
-      N            = input$N,
-      L            = input$L,
-      T            = input$T,
+      N = input$N,
+      L = input$L,
+      T = input$T,
       network_type = input$network_type,
-      init_type    = input$init_type,
+      init_type = input$init_type,
       model_version = input$model_version,
-      delta        = input$delta,
-      p            = get_network_param(),
-      k            = get_k_param()
+      disclosure_type = input$disclosure_type,
+      delta = input$delta
     )
-    # Polarization bias
+    
+    # Network-specific parameters
+    params$p <- get_network_param()
+    params$k <- get_k_param()
+    
+    # Conditional parameters
     if (input$init_type == "polarized") {
       params$b <- input$b
     } else {
-      params$b <- 0.7
+      params$b <- 0.7  # Default value
     }
-    # Compute s from disclosure_pct
-    pct <- input$disclosure_pct / 100
-    s_count <- ceiling(pct * params$N)
-    params$s <- max(1, min(params$N, s_count))
+    
+    if (input$disclosure_type == "selective") {
+      params$s <- input$s
+    } else {
+      params$s <- input$N  # Default value for global disclosure
+    }
+    
     return(params)
   }
   
@@ -630,7 +661,6 @@ server <- function(input, output, session) {
     if (params$init_type == "polarized") {
       cat("Bias Parameter (b): ", params$b, "\n")
     }
-    
   })
   
   # Update summary statistics display
@@ -684,6 +714,18 @@ server <- function(input, output, session) {
     cat(paste(values$status_log, collapse = "\n"))
   })
   
+  # Dynamically update UI to set max subset size to population max
+  output$s_ui <- renderUI({
+    sliderInput(
+      "s",
+      "Selective Disclosure Size (s):",
+      min = 1,
+      max = input$N,
+      value = min(10, input$N),
+      step = 1
+    )
+  })
+  
   # Trend-range slider
   output$trend_range_ui <- renderUI({
     req(input$trend_x)
@@ -714,6 +756,9 @@ server <- function(input, output, session) {
     # Get parameters
     params <- get_params()
     print(params)
+    
+    # Initialize progress bar
+    updateProgressBar(session, "progress", value = 0)
     
     # Run simulation in a separate R process to avoid blocking the UI
     future::plan(future::multisession)
@@ -795,13 +840,16 @@ server <- function(input, output, session) {
           max = params$T,
           value = 1
         )
+        # --- End NEW CODE ---
         
         add_log("Simulation completed successfully!")
         values$is_running <- FALSE
+        updateProgressBar(session, "progress", value = 100)
       },
       onRejected = function(error) {
         add_log(paste("Error in simulation:", error$message))
         values$is_running <- FALSE
+        updateProgressBar(session, "progress", value = 0)
       }
     )
     
@@ -885,7 +933,7 @@ server <- function(input, output, session) {
         ) +
         theme_minimal() +
         scale_color_brewer(palette = "Dark2") +
-        scale_y_continuous(sec.axis = sec_axis( ~ . / 100, name = "Gini Coefficient"))
+        scale_y_continuous(sec.axis = sec_axis(~ . / 100, name = "Gini Coefficient"))
     }
     
     return(p)
@@ -1130,162 +1178,41 @@ server <- function(input, output, session) {
   })
   
   
-  
-  
-  ### Parameter sweep functionality
+  # Parameter sweep functionality
   observeEvent(input$run_sweep, {
-    req(!values$is_running)
-<<<<<<< HEAD
-<<<<<<< HEAD
-    values$is_running <- TRUE
-    add_log("🔔 run_sweep pressed!")
-    
-    # Map the network types to codes
-    net_map <- c(
-      "Erdős-Rényi"     = "ER",
-      "Watts-Strogatz"  = "WS",
-      "Barabási-Albert" = "BA"
-    )
-    
-    # Build disclosure percentage grid
-    disc_seq <- seq(input$disclosure_pct_min,
-                    input$disclosure_pct_max,
-                    by = input$disclosure_pct_step)
-    # Snapshot inputs
+    # snapshot reactives
     num_runs_local    <- input$num_runs
     base_params_local <- get_params()
     param_grid_local  <- list(
-      N               = seq(input$n_min, input$n_max, by = input$n_step),
-      L               = seq(input$l_min, input$l_max, by = input$l_step),
-      T               = seq(input$t_min, input$t_max, by = input$t_step),
-      network_type    = net_map[input$network_type_sweep],
-      model_version   = input$model_version_sweep,
-      disclosure_pct = disc_seq
+      N              = seq(input$n_min, input$n_max, by = input$n_step),
+      L              = seq(input$l_min, input$l_max, by = input$l_step),
+      T              = seq(input$t_min, input$t_max, by = input$t_step),
+      network_type   = input$network_type_sweep,
+      model_version  = input$model_version_sweep,
     )
     
-    # Build and replicate parameter combinations
-    combos <- expand.grid(param_grid_local, stringsAsFactors = FALSE)
-    combos <- combos[rep(seq_len(nrow(combos)), each = num_runs_local), , drop = FALSE]
-    combos$run_id <- rep(seq_len(num_runs_local), length.out = nrow(combos))
-    total_iters <- nrow(combos)
+    # Map the network types to codes:
+    net_map <- c(
+      "Erdős-Rényi"        = "ER",
+      "Watts-Strogatz"     = "WS",
+      "Barabási-Albert"    = "BA"
+    )
+    param_grid_local$network_type <- net_map[param_grid_local$network_type]
+    # -------------------------
     
-    # Convert percentage to count for each combination
-    combos$s <- ceiling((combos$disclosure_pct / 100) * combos$N)
-    combos$s <- pmin(combos$s, combos$N)
-    
-    # Run sweep with progress bar
-    withProgress(message = "Running parameter sweep...", value = 0, {
-      results_list <- vector("list", total_iters)
-      
-      for (i in seq_len(total_iters)) {
-        # Merge base params with this combination
-        params <- base_params_local
-        for (nm in names(param_grid_local))
-          params[[nm]] <- combos[i, nm]
-        
-        # Perform simulation and extract final metrics
-        sim_res <- run_simulation(params)
-        ts <- process_simulation_results(sim_res)$time_series
-        final <- ts[nrow(ts), , drop = FALSE]
-        
-        # Store metrics
-        results_list[[i]] <- tibble(
-          network_type  = params$network_type,
-          model_version = params$model_version,
-          delta         = params$delta,
-          b             = params$b,
-          run_id        = combos$run_id[i],
-          final_perceived_neighbor_similarity = final$perceived_neighbor_similarity,
-          final_perceived_all_similarity      = final$perceived_all_similarity,
-          final_perceived_similarity_gap      = final$perceived_similarity_gap,
-          final_objective_neighbor_similarity = final$objective_neighbor_similarity,
-          final_objective_all_similarity      = final$objective_all_similarity,
-          final_objective_similarity_gap      = final$objective_similarity_gap,
-          final_revealed_neighbor_similarity  = final$revealed_neighbor_similarity,
-          final_revealed_all_similarity       = final$revealed_all_similarity,
-          final_revealed_similarity_gap       = final$revealed_similarity_gap,
-          final_variance                      = final$variance,
-          final_bimodality                    = final$bimodality,
-          final_clustering                    = final$clustering,
-          final_modularity                    = final$modularity,
-          final_mean_welfare                  = final$mean_welfare,
-          final_gini                          = final$gini
-        )
-        
-        #NEW: increment progress
-        incProgress(1 / total_iters, detail = paste0("Run ", i, " of ", total_iters))
-      }
-    })
-    
-    # Assign results and reset state
-    values$sweep_results <- dplyr::bind_rows(results_list)
-    add_log("Parameter sweep completed successfully!")
-    values$is_running <- FALSE
-    updateProgressBar(session, "progress", value = 100)
-  })
-  
-=======
-=======
->>>>>>> parent of 336fb28 (Run param sweep debug)
-    
+    # initialize UI state
+    add_log("🔔 run_sweep pressed!")
     values$is_running <- TRUE
-    add_log("Starting parameter sweep...")
-    
-    # Get base parameters
-    base_params <- get_params()
-    
-    # Create parameter grid based on selected parameters to sweep
-    param_grid <- list(
-      N             = seq(input$n_min, input$n_max, by = input$n_step),
-      L             = seq(input$l_min, input$l_max, by = input$l_step),
-      T             = seq(input$t_min, input$t_max, by = input$t_step),
-      network_type  = input$network_type_sweep,
-      model_version = input$model_version_sweep,
-      disclosure_type = input$disclosure_type_sweep
-    )
-    
-    if ("network_type" %in% input$sweep_params) {
-      param_grid$network_type <- c("ER", "WS", "BA")
-    }
-    
-    if ("model_version" %in% input$sweep_params) {
-      param_grid$model_version <- c("static", "dynamic")
-    }
-    
-    if ("disclosure_type" %in% input$sweep_params) {
-      param_grid$disclosure_type <- c("selective", "global")
-    }
-    
-    if ("delta" %in% input$sweep_params) {
-      param_grid$delta <- c(0.2, 0.5, 0.8)
-    }
-    
-    if ("b" %in% input$sweep_params) {
-      param_grid$b <- c(0.6, 0.75, 0.9)
-    }
-    
-    # Check if any parameters selected
-    if (length(param_grid) == 0) {
-      add_log("Error: No parameters selected for sweep")
-      values$is_running <- FALSE
-      return()
-    }
-    
-    # Set up progress updates
     updateProgressBar(session, "progress", value = 0)
     
-    # Run parameter sweep in background
+    # launch sweep in background
     future::plan(future::multisession)
-    
     future_promise <- future::future({
-      # (1) Cap T at 10 for speed
-      base_params$T <- min(base_params$T, 10)
-      
-      # (2) Run the sweep once, wiring in progress updates to the UI
+      base_params_local$T <- min(base_params_local$T, 10)
       run_parameter_sweep(
-        base_params,
-        param_grid,
-        input$num_runs,
+        base_params_local,
+        param_grid_local,
+        num_runs_local,
         progress_callback = function(pct) {
           updateProgressBar(session, "progress", value = pct)
         }
@@ -1306,10 +1233,8 @@ server <- function(input, output, session) {
         updateProgressBar(session, "progress", value = 0)
       }
     )
-<<<<<<< HEAD
->>>>>>> parent of 336fb28 (Run param sweep debug)
-=======
->>>>>>> parent of 336fb28 (Run param sweep debug)
+  })
+  
   
   # Sweep results visualization
   output$sweep_plot <- renderPlot({
@@ -1373,7 +1298,7 @@ server <- function(input, output, session) {
         geom = "errorbar",
         width = 0.2
       ) +
-      facet_wrap( ~ "Similarity Gap") +
+      facet_wrap(~ "Similarity Gap") +
       labs(title = "Parameter Sweep Results",
            x = gsub("_", " ", toupper(x_param)),
            y = "Value") +
@@ -1443,7 +1368,7 @@ server <- function(input, output, session) {
         ymax = mean + sd,
         fill = metric
       ), alpha = 0.2) +
-      facet_wrap( ~ model_version, scales = "free_x") +
+      facet_wrap(~ model_version, scales = "free_x") +
       labs(x = input$trend_x,
            y = "Mean ± SD",
            title = "Parameter Trends") +
@@ -1519,7 +1444,7 @@ server <- function(input, output, session) {
         ymax = mean + sd,
         fill = metric
       ), alpha = 0.2) +
-      facet_wrap( ~ model_version, scales = "free_x") +
+      facet_wrap(~ model_version, scales = "free_x") +
       labs(x = input$trend_x,
            y = "Mean ± SD",
            title = "Parameter Trends") +
