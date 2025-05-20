@@ -1169,7 +1169,7 @@ example_params <- list(
   # Influence decay factor
   s = 10,
   # Size of target subset for selective disclosure
-  model_version = "static",
+  model_version = "static"
   # Network version: "static" or "dynamic"
 )
 

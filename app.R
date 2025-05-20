@@ -78,15 +78,16 @@ ui <- dashboardPage(
   ),
   
   dashboardSidebar(width = 600, fluidRow(
-    # Left column: Navigation, Basic parameters, Decay Factor, and Run Button
+    ## ---------- LEFT 6 columns ----------
     column(
       6,
-      id = "sidebar",
+      id    = "sidebar",
       style = "padding: 10px;",
+      
       sidebarMenu(
-        id = "tabs",
+        id    = "tabs",
         style = "font-size: 16px;",
-        menuItem("Results", tabName = "results", icon = icon("chart-bar")),
+        menuItem("One-Off Simulation", tabName = "results", icon = icon("chart-bar")),
         menuItem(
           "Network Visualization",
           tabName = "network",
@@ -99,12 +100,7 @@ ui <- dashboardPage(
         ),
         menuItem("About", tabName = "about", icon = icon("info-circle"))
       ),
-      actionButton(
-        "run",
-        "Run Simulation",
-        icon = icon("play"),
-        style = "width: 80%; box-sizing: border-box; color: #fff; background-color: #337ab7; width: 80%; margin: auto; display: block;"
-      ),
+      
       sliderInput(
         "N",
         "Number of Agents (N):",
@@ -129,28 +125,34 @@ ui <- dashboardPage(
         value = 20
       ),
       helpText("Total number of simulation rounds."),
+      
       sliderInput(
         "delta",
         "Influence Decay Factor (δ):",
         min = 0.1,
-        max = 1.0,
+        max = 1,
         value = 0.5,
         step = 0.05
       ),
-      helpText("Determines how rapidly influence decays with network distance.")
+      helpText("Rate that influence decays with distance."),
+      
     ),
-    # Right column: Network and simulation parameters (excluding decay factor and run button)
-    sliderInput(
-      "disclosure_pct",
-      "Disclosure Size (% of Population):",
-      min = 0,
-      max = 100,
-      value = 50,
-      step = 1
-    ),
+    
+    ## ---------- RIGHT 6 columns ----------
     column(
       6,
       style = "padding-left: 5px;",
+      
+      sliderInput(
+        "disclosure_pct",
+        "Disclosure Size (% of Population):",
+        min = 0,
+        max = 100,
+        value = 50,
+        step = 1
+      ),
+      helpText("Determines the size of agent disclosures"),
+      
       selectInput(
         "network_type",
         "Network Type:",
@@ -173,8 +175,6 @@ ui <- dashboardPage(
           step = 0.01
         )
       ),
-      helpText("Probability of edge creation in an ER network."),
-      
       conditionalPanel(
         condition = "input.network_type == 'WS'",
         sliderInput(
@@ -185,7 +185,6 @@ ui <- dashboardPage(
           value = 4,
           step = 1
         ),
-        helpText("Initial number of neighbors in a WS network."),
         sliderInput(
           "p_ws",
           "Rewiring Probability (p):",
@@ -193,10 +192,8 @@ ui <- dashboardPage(
           max = 0.5,
           value = 0.1,
           step = 0.01
-        ),
-        helpText("Probability of rewiring connections in a WS network.")
+        )
       ),
-      
       conditionalPanel(
         condition = "input.network_type == 'BA'",
         sliderInput(
@@ -206,8 +203,7 @@ ui <- dashboardPage(
           max = 10,
           value = 3,
           step = 1
-        ),
-        helpText("Number of edges to attach from each new node in a BA network.")
+        )
       ),
       
       selectInput(
@@ -215,8 +211,6 @@ ui <- dashboardPage(
         "Type Vector Initialization:",
         choices = c("Random" = "random", "Polarized" = "polarized")
       ),
-      helpText("Choose how agent traits are initialized."),
-      
       conditionalPanel(
         condition = "input.init_type == 'polarized'",
         sliderInput(
@@ -226,9 +220,9 @@ ui <- dashboardPage(
           max = 0.99,
           value = 0.7,
           step = 0.01
-        ),
-        helpText("Controls the degree of polarization.")
+        )
       ),
+      
       selectInput(
         "model_version",
         "Network Version:",
@@ -247,21 +241,33 @@ ui <- dashboardPage(
       tabItem(
         tabName = "results",
         tabBox(
-          title = "Results",
+          title = "One-Off Simulation",
           width = 12,
           tabPanel("Time Series", fluidRow(
             box(
-              title = "Visualization Controls",
+              title = "Simulation Controls",
               width = 4,
+              actionButton(
+                "run",
+                "Run Simulation",
+                icon  = icon("play"),
+                style = "width: 80%; box-sizing: border-box; color: #fff;
+                            background-color: #337ab7; margin: auto; display: block;"
+              ),
+              br(),
               selectInput(
                 "plot_type",
                 "Plot Type:",
                 choices = c("Similarity", "Polarization", "Network Metrics", "Mean Welfare"),
                 selected = "Similarity"
               ),
-              downloadButton("download_results", "Download Results"),
               br(),
-              div(style = "margin-top: 20px;", h5("Status Log"), verbatimTextOutput("status_log"))
+              downloadButton("download_results", "Download Results",
+                             style = "width: 80%; box-sizing: border-box; margin: auto; display: block;"),
+              br(),
+              br(),
+              div(style = "margin-top: 20px;", h6("Status Log")),
+              div(style = "height: 100px; overflow-y: auto; padding-top: 10px", verbatimTextOutput("status_log"))
             ),
             box(
               title = "Time Series Plot",
@@ -418,7 +424,6 @@ ui <- dashboardPage(
                 column(4, numericInput("t_step", "Increment:", 20, min = 1))
               )
             ),
-            
             column(
               6,
               checkboxGroupInput(
@@ -582,13 +587,11 @@ server <- function(input, output, session) {
   output$summary_stats <- renderTable({
     req(values$processed_results)
     
-    final_round <- nrow(values$processed_results$time_series)
-    last_metrics <- values$processed_results$time_series[final_round, ]
+    last <- tail(values$processed_results$time_series, 1)
     
     disclosure_rate <- values$processed_results$params$disclosure_metrics$disclosure_rate
-    if (length(disclosure_rate) == 0) {
+    if (length(disclosure_rate) == 0)
       disclosure_rate <- NA
-    }
     
     data.frame(
       Metric = c(
@@ -603,14 +606,14 @@ server <- function(input, output, session) {
         "Disclosure Rate"
       ),
       Value = c(
-        last_metrics$neighbor_similarity,
-        last_metrics$all_similarity,
-        last_metrics$similarity_gap,
-        last_metrics$variance,
-        last_metrics$clustering,
-        last_metrics$modularity,
-        last_metrics$mean_welfare,
-        last_metrics$gini,
+        last$perceived_neighbor_similarity        %||% NA,
+        last$perceived_all_similarity             %||% NA,
+        last$perceived_similarity_gap             %||% NA,
+        last$variance                             %||% NA,
+        last$clustering                           %||% NA,
+        last$modularity                           %||% NA,
+        last$mean_welfare                         %||% NA,
+        last$gini                                 %||% NA,
         disclosure_rate
       )
     )
@@ -830,7 +833,7 @@ server <- function(input, output, session) {
         ) +
         theme_minimal() +
         scale_color_brewer(palette = "Dark2") +
-        scale_y_continuous(sec.axis = sec_axis( ~ . / 100, name = "Gini Coefficient"))
+        scale_y_continuous(sec.axis = sec_axis(~ . / 100, name = "Gini Coefficient"))
     }
     
     return(p)
@@ -1230,7 +1233,7 @@ server <- function(input, output, session) {
         geom = "errorbar",
         width = 0.2
       ) +
-      facet_wrap( ~ "Similarity Gap") +
+      facet_wrap(~ "Similarity Gap") +
       labs(title = "Parameter Sweep Results",
            x = gsub("_", " ", toupper(x_param)),
            y = "Value") +
@@ -1300,7 +1303,7 @@ server <- function(input, output, session) {
         ymax = mean + sd,
         fill = metric
       ), alpha = 0.2) +
-      facet_wrap( ~ model_version, scales = "free_x") +
+      facet_wrap(~ model_version, scales = "free_x") +
       labs(x = input$trend_x,
            y = "Mean ± SD",
            title = "Parameter Trends") +
@@ -1376,7 +1379,7 @@ server <- function(input, output, session) {
         ymax = mean + sd,
         fill = metric
       ), alpha = 0.2) +
-      facet_wrap( ~ model_version, scales = "free_x") +
+      facet_wrap(~ model_version, scales = "free_x") +
       labs(x = input$trend_x,
            y = "Mean ± SD",
            title = "Parameter Trends") +
