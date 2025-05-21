@@ -7687,3 +7687,9 @@ input[type="checkbox"]:disabled:checked:after,
 .nav-tabs-custom > .nav-tabs > li > a {
   font-size: 16px; /* You can make this larger if needed */
 }
+#status_log, #status_log_sim {
+  height:260px;          /* fixed initial height           */
+  overflow-y:auto;       /* keep scrollbar inside the pre  */
+  background:#eeeeee;    /* same grey from the default     */
+  padding:5px;           /* a little breathing room        */
+}

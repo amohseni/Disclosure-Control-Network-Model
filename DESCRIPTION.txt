@@ -1,0 +1,24 @@
+Package: disclosureApp
+Type: Shiny
+Title: Selective Self-Disclosure Simulator
+Version: 0.0.0.9000
+Authors@R: person("Your", "Name", email = "you@example.com", role = c("aut", "cre"))
+Description: Shiny app for the paper on selective self-disclosure.
+License: MIT
+Encoding: UTF-8
+Imports:
+    shiny,
+    shinydashboard,
+    shinyWidgets,
+    shinyjs,
+    igraph,
+    dplyr,
+    ggplot2,
+    tidyr,
+    plotly,
+    DT,
+    future,
+    promises,
+    shinyBS,
+    visNetwork,
+    RColorBrewer
