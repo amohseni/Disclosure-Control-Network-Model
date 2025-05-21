@@ -27,6 +27,9 @@ source("Disclosure-Control-Network-Simulation.R", local = TRUE)
 # Helper Functions for UI Elements
 ###############################################################
 
+# --- helper for %||% ----
+`%||%` <- function(x, y) if (is.null(x)) y else x
+
 ## Robust blue palette centered on #337ab7
 make_blues <- function(n) {
   n <- as.integer(n)
@@ -38,6 +41,13 @@ make_blues <- function(n) {
   base_n <- min(max(n, 3), 9)
   brewer_colors <- brewer.pal(base_n, "Blues")
   grDevices::colorRampPalette(brewer_colors)(n)
+}
+
+# --- safe future plan ----
+if (interactive()) {
+  future::plan(multisession)
+} else {
+  future::plan(sequential)
 }
 
 ###############################################################
@@ -220,7 +230,7 @@ ui <- dashboardPage(
       tabItem(
         tabName = "results",
         tabBox(
-          title = "Simulation",
+          title = NULL,
           width = 12,
           tabPanel("Simulation Plot", fluidRow(
             box(
@@ -301,7 +311,7 @@ ui <- dashboardPage(
       ),
       tabItem(tabName = "about", 
               box(
-        title = "About",
+        title = NULL,
         width = 12,
         style  = "padding: 30px; font-size:12pt;",
         h3(
@@ -326,8 +336,19 @@ ui <- dashboardPage(
           column(
             4,
             br(),
+            box(
+              title = "Controls",
+              width = 12,
             div(
               style = "text-align: center;",
+              radioButtons(
+                "sweep_preset",
+                label = "Preset:",
+                choices = c("Custom", "Minimal Test", "Full Test"),
+                selected = "Custom",
+                inline = TRUE
+              ),
+              br(),
               actionButton(
                 "run_sweep",
                 "Run Parameter Sweep",
@@ -345,7 +366,7 @@ ui <- dashboardPage(
                 h6("Status Log"),
                 div(style = "height: 275px; overflow: auto; padding-top: 10px", verbatimTextOutput("status_log"))
               )
-            ),
+            )),
             br(),
           ),
           # ------------------ SWEEP INPUT VARS ------------------ #
@@ -355,7 +376,7 @@ ui <- dashboardPage(
             numericInput(
               "num_runs",
               label = NULL,
-              value = 1,
+              value = 5,
               min = 1
             ),
             h6("Number of Agents (N):"),
@@ -510,8 +531,15 @@ ui <- dashboardPage(
                 "final_mean_welfare",
                 "final_gini"
               ),
-              selected = NULL
-            )
+              selected = c(
+                "final_perceived_neighbor_similarity",
+                "final_perceived_all_similarity",
+                "final_objective_neighbor_similarity",
+                "final_objective_all_similarity",
+                "final_revealed_neighbor_similarity",
+                "final_revealed_all_similarity"
+              )            
+              )
           ), column(9, plotlyOutput("violin_plotly", height = "1200px"))
         )),
       ))
@@ -671,7 +699,12 @@ server <- function(input, output, session) {
       N = seq(input$n_min, input$n_max, by = input$n_step),
       L = seq(input$l_min, input$l_max, by = input$l_step),
       T = seq(input$t_min, input$t_max, by = input$t_step),
-      s = seq(1, input$n_max, by = 1)
+      s = seq(
+        input$disclosure_pct_min,
+        input$disclosure_pct_max,
+        by = input$disclosure_pct_step
+      ),
+      delta = seq(input$delta_min, input$delta_max, by = input$delta_step)
     )
     sliderInput(
       "trend_range",
@@ -682,6 +715,13 @@ server <- function(input, output, session) {
       step = unique(diff(rng))
     )
   })
+  
+  ## ---- Give the violin plot a default selection ---------------------------
+  updateCheckboxGroupInput(
+    session,
+    "violin_metrics",
+    selected = c("final_perceived_similarity_gap", "final_mean_welfare")
+  )
   
   # Run simulation when button is clicked (either one)
   observeEvent(c(input$run, input$run2), {
@@ -1020,8 +1060,6 @@ server <- function(input, output, session) {
   })
   
   
-  
-  
   ### Parameter sweep functionality
   observeEvent(input$run_sweep, {
     req(!values$is_running)
@@ -1078,11 +1116,18 @@ server <- function(input, output, session) {
         
         # Store metrics
         results_list[[i]] <- tibble(
-          network_type  = params$network_type,
+          ## ---------- design parameters ----------
+          N            = params$N,
+          L            = params$L,
+          T            = params$T,
+          s            = params$s,        
+          delta        = params$delta,    
+          network_type = params$network_type,
           model_version = params$model_version,
-          delta         = params$delta,
-          b             = params$b,
-          run_id        = combos$run_id[i],
+          b            = params$b,
+          run_id       = combos$run_id[i],
+          
+          ## ---------- outcome metrics ------------
           final_perceived_neighbor_similarity = final$perceived_neighbor_similarity,
           final_perceived_all_similarity      = final$perceived_all_similarity,
           final_perceived_similarity_gap      = final$perceived_similarity_gap,
@@ -1110,6 +1155,100 @@ server <- function(input, output, session) {
     add_log("Parameter sweep completed successfully!")
     values$is_running <- FALSE
     updateProgressBar(session, "progress", value = 100)
+  })
+  
+  # -------------------------------------------------------------------
+  #  Preset loader for the sweep-input pane
+  # -------------------------------------------------------------------
+  observeEvent(input$sweep_preset, ignoreInit = TRUE, {
+    
+    if (input$sweep_preset == "Minimal Test") {
+      ## ---- MINIMAL --------------------------------------------------
+      updateNumericInput(session, "num_runs", value = 1)
+      
+      updateNumericInput(session, "n_min",  value = 5)
+      updateNumericInput(session, "n_max",  value = 5)
+      updateNumericInput(session, "n_step", value = 1)
+      
+      updateNumericInput(session, "l_min",  value = 2)
+      updateNumericInput(session, "l_max",  value = 2)
+      updateNumericInput(session, "l_step", value = 1)
+      
+      updateNumericInput(session, "t_min",  value = 1)
+      updateNumericInput(session, "t_max",  value = 1)
+      updateNumericInput(session, "t_step", value = 1)
+      
+      updateNumericInput(session, "delta_min",  value = 0.5)
+      updateNumericInput(session, "delta_max",  value = 0.5)
+      updateNumericInput(session, "delta_step", value = 0.1)
+      
+      updateNumericInput(session, "disclosure_pct_min",  value = 50)
+      updateNumericInput(session, "disclosure_pct_max",  value = 50)
+      updateNumericInput(session, "disclosure_pct_step", value = 1)
+      
+      updateCheckboxGroupInput(session, "network_type_sweep",
+                               selected = "Erdős-Rényi")
+      updateCheckboxGroupInput(session, "model_version_sweep",
+                               selected = "static")
+      
+    } else if (input$sweep_preset == "Full Test") {
+      ## ---- FULL -----------------------------------------------------
+      updateNumericInput(session, "num_runs", value = 1000)
+      
+      updateNumericInput(session, "n_min",  value = 10)
+      updateNumericInput(session, "n_max",  value = 100)
+      updateNumericInput(session, "n_step", value = 10)
+      
+      updateNumericInput(session, "l_min",  value = 1)
+      updateNumericInput(session, "l_max",  value = 10)
+      updateNumericInput(session, "l_step", value = 1)
+      
+      updateNumericInput(session, "t_min",  value = 10)
+      updateNumericInput(session, "t_max",  value = 100)
+      updateNumericInput(session, "t_step", value = 10)
+      
+      updateNumericInput(session, "delta_min",  value = 0.0)
+      updateNumericInput(session, "delta_max",  value = 1.0)
+      updateNumericInput(session, "delta_step", value = 0.2)
+      
+      updateNumericInput(session, "disclosure_pct_min",  value = 0)
+      updateNumericInput(session, "disclosure_pct_max",  value = 100)
+      updateNumericInput(session, "disclosure_pct_step", value = 10)
+      
+      updateCheckboxGroupInput(session, "network_type_sweep",
+                               selected = c("Erdős-Rényi", "Watts-Strogatz", "Barabási-Albert"))
+      updateCheckboxGroupInput(session, "model_version_sweep",
+                               selected = c("static", "dynamic"))
+      
+    } else {
+      ## ---- CUSTOM (restore your original defaults) -----------------
+      updateNumericInput(session, "num_runs", value = 5)
+      
+      updateNumericInput(session, "n_min",  value = 10)
+      updateNumericInput(session, "n_max",  value = 50)
+      updateNumericInput(session, "n_step", value = 20)
+      
+      updateNumericInput(session, "l_min",  value = 1)
+      updateNumericInput(session, "l_max",  value = 5)
+      updateNumericInput(session, "l_step", value = 2)
+      
+      updateNumericInput(session, "t_min",  value = 10)
+      updateNumericInput(session, "t_max",  value = 50)
+      updateNumericInput(session, "t_step", value = 20)
+      
+      updateNumericInput(session, "delta_min",  value = 0.0)
+      updateNumericInput(session, "delta_max",  value = 1.0)
+      updateNumericInput(session, "delta_step", value = 0.5)
+      
+      updateNumericInput(session, "disclosure_pct_min",  value = 0)
+      updateNumericInput(session, "disclosure_pct_max",  value = 100)
+      updateNumericInput(session, "disclosure_pct_step", value = 50)
+      
+      updateCheckboxGroupInput(session, "network_type_sweep",
+                               selected = "Erdős-Rényi")
+      updateCheckboxGroupInput(session, "model_version_sweep",
+                               selected = "static")
+    }
   })
   
   
@@ -1205,6 +1344,50 @@ server <- function(input, output, session) {
       )
     
     sweep_summary
+  })
+  
+  # ---- trend plot  -----------------------------------------------------------
+  output$trend_plotly <- renderPlotly({
+    req(values$sweep_results,
+        input$trend_range,
+        input$trend_group)
+    
+    similarity_metrics <- c(
+      "final_perceived_neighbor_similarity",
+      "final_perceived_all_similarity",
+      "final_perceived_similarity_gap",
+      "final_objective_neighbor_similarity",
+      "final_objective_all_similarity",
+      "final_objective_similarity_gap",
+      "final_revealed_neighbor_similarity",
+      "final_revealed_all_similarity",
+      "final_revealed_similarity_gap"
+    )
+    
+    df <- values$sweep_results %>%
+      pivot_longer(
+        cols      = starts_with("final_"),
+        names_to  = "metric",
+        values_to = "value"
+      ) %>%
+      filter(
+        (input$trend_group == "similarity" & metric %in% similarity_metrics) |
+          (input$trend_group == "other"       & !(metric %in% similarity_metrics))
+      ) %>%
+      filter(between(.data[[input$trend_x]], input$trend_range[1], input$trend_range[2]))
+    
+    summary_df <- df %>%
+      group_by(x = .data[[input$trend_x]], model_version, metric) %>%
+      summarise(mean = mean(value), sd = sd(value), .groups = "drop")
+    
+    p <- ggplot(summary_df, aes(x = x, y = mean, colour = metric)) +
+      geom_line() +
+      geom_ribbon(aes(ymin = mean - sd, ymax = mean + sd, fill = metric), alpha = 0.2) +
+      facet_wrap(~ model_version, scales = "free_x") +
+      labs(x = input$trend_x, y = "Mean ± SD", title = "Parameter Trends") +
+      theme_minimal()
+    
+    ggplotly(p, tooltip = c("x", "metric", "mean", "sd"))
   })
   
   # Download handlers

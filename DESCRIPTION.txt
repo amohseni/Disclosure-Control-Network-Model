@@ -6,6 +6,7 @@ Authors@R: person("Your", "Name", email = "you@example.com", role = c("aut", "cr
 Description: Shiny app for the paper on selective self-disclosure.
 License: MIT
 Encoding: UTF-8
+DisplayMode: Showcase
 Imports:
     shiny,
     shinydashboard,
