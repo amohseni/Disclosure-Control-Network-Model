@@ -652,14 +652,22 @@ run_simulation_round <- function(graph,
     # Always use params$s as number of disclosures; 
     # Global disclosure is s == N
     other_agents <- setdiff(1:params$N, i)
-    if (params$s >= params$N) {
-      target_agents <- other_agents
-    } else {
-      target_agents <- sample(other_agents, params$s)
-    }
     
-    # Decide best action
-    action_result <- decide_best_action(i, target_agents, distances, beliefs, types, L, delta)
+    # Special case: s=0 means no disclosure actions
+    if (params$s == 0) {
+      # For s=0, we force "reveal nothing" action
+      action_result <- list(action = "reveal nothing", utility = calculate_utility(i, distances, beliefs, types, L, delta))
+    } else {
+      # Normal case: determine target agents and decide best action
+      if (params$s >= params$N) {
+        target_agents <- other_agents
+      } else {
+        target_agents <- sample(other_agents, params$s)
+      }
+      
+      # Decide best action
+      action_result <- decide_best_action(i, target_agents, distances, beliefs, types, L, delta)
+    }
     best_action <- action_result$action
     round_actions[i] <- best_action
     

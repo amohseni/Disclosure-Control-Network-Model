@@ -374,153 +374,168 @@ ui <- dashboardPage(
           # ------------------ SWEEP INPUT CONTROLS ------------------ #
           column(
             4,
-            br(),
             box(
               title = "Controls",
               width = 12,
-            div(
-              style = "text-align: center;",
-              radioButtons(
-                "sweep_preset",
-                label = "Preset:",
-                choices = c("Custom", "Minimal Test", "Full Test"),
-                selected = "Custom",
-                inline = TRUE
-              ),
-              br(),
-              actionButton(
-                "run_sweep",
-                "Run Parameter Sweep",
-                icon = icon("play"),
-                style = "width: 180pt; box-sizing: border-box; color: #fff; background-color: #337ab7; margin: auto; display: block;"
-              ),
-              br(),
+              style = "margin-top: 0px; padding: 15px;",
               div(
-                style = "text-align: center;",
-                downloadButton("download_sweep", "Download Results", style = "width: 180pt; box-sizing: border-box; margin: auto; display: block;"),
-              ),
-              br(),
-              div(
-                style = "margin-top: 20px;",
-                h6("Status Log"),
-                div(style = "height: 275px; overflow: auto; padding-top: 10px", verbatimTextOutput("status_log"))
+                style = "text-align: left;",
+                radioButtons(
+                  "sweep_preset",
+                  label = "Sweep Preset:",
+                  choices = c("Minimal Test", "Full Test", "Custom"),
+                  selected = "Minimal Test",
+                  inline = TRUE
+                ),
+                br(),
+                actionButton(
+                  "run_sweep",
+                  "Run Parameter Sweep",
+                  icon = icon("play"),
+                  style = "width: 180pt; box-sizing: border-box; color: #fff; background-color: #337ab7; margin: auto; display: block;"
+                ),
+                br(),
+                div(
+                  style = "text-align: center;",
+                  downloadButton("download_sweep", "Download Results", style = "width: 180pt; box-sizing: border-box; margin: auto; display: block;"),
+                ),
+                br(),
+                div(
+                  style = "margin-top: 10px;",
+                  h6("Status Log"),
+                  div(style = "height: 275px; overflow: auto; padding-top: 10px", verbatimTextOutput("status_log"))
+                )
               )
-            )),
-            br(),
+            )
           ),
           # ------------------ SWEEP INPUT VARS ------------------ #
           column(
             4,
-            h6("Number of Runs per Combination:"),
-            numericInput(
-              "num_runs",
-              label = NULL,
-              value = 5,
-              min = 1
-            ),
-            h6("Number of Agents (N):"),
-            fluidRow(
-              column(3, numericInput("n_min", "Min N:", 10, min = 1)),
-              column(3, numericInput("n_max", "Max N:", 50, min = 1)),
-              column(3, numericInput("n_step", "Increment:", 20, min = 1))
-            ),
-            
-            h6("Length of Type Vector (L):"),
-            fluidRow(
-              column(3, numericInput("l_min", "Min L:", 1, min = 1)),
-              column(3, numericInput("l_max", "Max L:", 5, min = 1)),
-              column(3, numericInput("l_step", "Increment:", 2, min = 1))
-            ),
-            
-            h6("Number of Rounds (T):"),
-            fluidRow(
-              column(3, numericInput("t_min", "Min T:", 10, min = 1)),
-              column(3, numericInput("t_max", "Max T:", 50, min = 1)),
-              column(3, numericInput("t_step", "Increment:", 20, min = 1))
+            box(
+              title = "Simulation Parameters",
+              width = 12,
+              style = "margin-top: 0px; padding: 15px;",
+              div(
+                h6("Number of Runs per Combination:"),
+                numericInput(
+                  "num_runs",
+                  label = NULL,
+                  value = 1,
+                  min = 1
+                ),
+                h6("Number of Agents (N):"),
+                fluidRow(
+                  column(3, numericInput("n_min", "Min N:", 3, min = 1)),
+                  column(3, numericInput("n_max", "Max N:", 7, min = 1)),
+                  column(3, numericInput("n_step", "Increment:", 2, min = 1))
+                ),
+                
+                h6("Length of Type Vector (L):"),
+                fluidRow(
+                  column(3, numericInput("l_min", "Min L:", 1, min = 1)),
+                  column(3, numericInput("l_max", "Max L:", 3, min = 1)),
+                  column(3, numericInput("l_step", "Increment:", 1, min = 1))
+                ),
+                
+                h6("Number of Rounds (T):"),
+                fluidRow(
+                  column(3, numericInput("t_min", "Min T:", 1, min = 1)),
+                  column(3, numericInput("t_max", "Max T:", 3, min = 1)),
+                  column(3, numericInput("t_step", "Increment:", 2, min = 1))
+                )
+              )
             )
           ),
           column(
             4,
-            h6("Decay Factor (δ):"),
-            fluidRow(
-              column(
-                3,
-                numericInput(
-                  "delta_min",
-                  "Min δ:",
-                  value = 0.0,
-                  min   = 0.0,
-                  max   = 1.0,
-                  step  = 0.01
-                )
-              ),
-              column(
-                3,
-                numericInput(
-                  "delta_max",
-                  "Max δ:",
-                  value = 1.0,
-                  min   = 0.0,
-                  max   = 1.0,
-                  step  = 0.01
-                )
-              ),
-              column(
-                3,
-                numericInput(
-                  "delta_step",
-                  "Increment:",
-                  value = 0.5,
-                  min   = 0.01,
-                  max   = 1.0,
-                  step  = 0.01
+            box(
+              title = "Network Parameters",
+              width = 12,
+              style = "margin-top: 0px; padding: 15px;",
+              div(
+                h6("Decay Factor (δ):"),
+                fluidRow(
+                  column(
+                    3,
+                    numericInput(
+                      "delta_min",
+                      "Min δ:",
+                      value = 0.0,
+                      min   = 0.0,
+                      max   = 1.0,
+                      step  = 0.01
+                    )
+                  ),
+                  column(
+                    3,
+                    numericInput(
+                      "delta_max",
+                      "Max δ:",
+                      value = 1.0,
+                      min   = 0.0,
+                      max   = 1.0,
+                      step  = 0.01
+                    )
+                  ),
+                  column(
+                    3,
+                    numericInput(
+                      "delta_step",
+                      "Increment:",
+                      value = 0.5,
+                      min   = 0.01,
+                      max   = 1.0,
+                      step  = 0.01
+                    )
+                  )
+                ),
+                h6("Disclosure Size (%):"),
+                fluidRow(
+                  column(
+                    3,
+                    numericInput(
+                      "disclosure_pct_min",
+                      "Min %:",
+                      value = 0,
+                      min   = 0,
+                      max   = 100
+                    )
+                  ),
+                  column(
+                    3,
+                    numericInput(
+                      "disclosure_pct_max",
+                      "Max %:",
+                      value = 100,
+                      min   = 0,
+                      max   = 100
+                    )
+                  ),
+                  column(
+                    3,
+                    numericInput(
+                      "disclosure_pct_step",
+                      "Increment:",
+                      value = 50,
+                      min   = 1,
+                      max   = 100
+                    )
+                  )
+                ),
+                hr(),
+                checkboxGroupInput(
+                  "network_type_sweep",
+                  "Network Type(s):",
+                  choices = c("Erdős-Rényi", "Watts-Strogatz", "Barabási-Albert"),
+                  selected = c("Erdős-Rényi")
+                ),
+                checkboxGroupInput(
+                  "model_version_sweep",
+                  "Network Version:",
+                  choices = c("static", "dynamic"),
+                  selected = "static"
                 )
               )
-            ),
-            h6("Disclosure Size (%):"),
-            fluidRow(
-              column(
-                3,
-                numericInput(
-                  "disclosure_pct_min",
-                  "Min %:",
-                  value = 0,
-                  min   = 0,
-                  max   = 100
-                )
-              ),
-              column(
-                3,
-                numericInput(
-                  "disclosure_pct_max",
-                  "Max %:",
-                  value = 100,
-                  min   = 0,
-                  max   = 100
-                )
-              ),
-              column(
-                3,
-                numericInput(
-                  "disclosure_pct_step",
-                  "Increment:",
-                  value = 50,
-                  min   = 1,
-                  max   = 100
-                )
-              )
-            ),
-            checkboxGroupInput(
-              "network_type_sweep",
-              "Network Type(s):",
-              choices = c("Erdős-Rényi", "Watts-Strogatz", "Barabási-Albert"),
-              selected = c("Erdős-Rényi")
-            ),
-            checkboxGroupInput(
-              "model_version_sweep",
-              "Network Version:",
-              choices = c("static", "dynamic"),
-              selected = "static"
             )
           )
         )),
@@ -539,13 +554,33 @@ ui <- dashboardPage(
               )
             ),
             uiOutput("trend_range_ui"),
+            br(),
             radioButtons(
               "trend_group",
               "Metric group:",
               choices = list("Similarity metrics" = "similarity", "Other metrics" = "other")
             )
           ),
-          column(9, plotlyOutput("trend_plotly", height = "600px"))
+          column(9, 
+            # Unified container for plot - we'll handle showing/hiding in the server
+            div(
+              style = "position: relative; min-height: 600px; height: 600px;",
+              # Warning message div - we'll show/hide this with JavaScript
+              div(
+                id = "no_data_warning_trend",
+                style = "text-align: center; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 30px; background-color: #f8f9fa; border-radius: 5px; border: 1px solid #dee2e6; width: 80%;",
+                icon("info-circle", class = "fa-2x", style = "color: #17a2b8;"),
+                h5("No parameter sweep data available", style = "font-size: 16px;"),
+                h5("Run a parameter sweep to visualize the resulting data.", style = "font-size: 16px;")
+              ),
+              # Plot - we'll show/hide this with JavaScript
+              div(
+                id = "trend_plot_container",
+                style = "display: none;",
+                plotlyOutput("trend_plotly", height = "600px")
+              )
+            )
+          )
         )),
         tabPanel("Comparisons", fluidRow(
           column(
@@ -583,7 +618,26 @@ ui <- dashboardPage(
               helpText(HTML("<strong>Tip:</strong> Select 2-4 metrics for more readable plots"))
             )
           ), 
-          column(9, plotlyOutput("violin_plotly", height = "1200px"))
+          column(9, 
+            # Unified container for plot - we'll handle showing/hiding in the server
+            div(
+              style = "position: relative; min-height: 600px; height: 600px;",
+              # Warning message div - we'll show/hide this with JavaScript
+              div(
+                id = "no_data_warning_violin",
+                style = "text-align: center; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 30px; background-color: #f8f9fa; border-radius: 5px; border: 1px solid #dee2e6; width: 80%;",
+                icon("info-circle", class = "fa-2x", style = "color: #17a2b8;"),
+                h5("No parameter sweep data available", style = "font-size: 16px;"),
+                h5("Run a parameter sweep to visualize the resulting data.", style = "font-size: 16px;")
+              ),
+              # Plot - we'll show/hide this with JavaScript
+              div(
+                id = "violin_plot_container",
+                style = "display: none;",
+                plotlyOutput("violin_plotly", height = "1200px")
+              )
+            )
+          )
         )),
       ))
     )
@@ -604,6 +658,27 @@ server <- function(input, output, session) {
     is_running = FALSE,
     network_states = list()
   )
+  
+  # Initialize UI state based on data availability
+  observe({
+    if (is.null(values$sweep_results)) {
+      # No data - show warnings, hide plots
+      runjs("
+        $('#no_data_warning_trend').show();
+        $('#no_data_warning_violin').show();
+        $('#trend_plot_container').hide();
+        $('#violin_plot_container').hide();
+      ")
+    } else {
+      # Data available - hide warnings, show plots
+      runjs("
+        $('#no_data_warning_trend').hide();
+        $('#no_data_warning_violin').hide();
+        $('#trend_plot_container').show();
+        $('#violin_plot_container').show();
+      ")
+    }
+  })
   
   # Helper function to get network parameter based on selected model
   get_network_param <- function() {
@@ -1134,10 +1209,19 @@ server <- function(input, output, session) {
       "Barabási-Albert" = "BA"
     )
     
-    # Build disclosure percentage grid
+    # Build parameter sequences
     disc_seq <- seq(input$disclosure_pct_min,
                     input$disclosure_pct_max,
                     by = input$disclosure_pct_step)
+    
+    delta_seq <- seq(input$delta_min,
+                    input$delta_max,
+                    by = input$delta_step)
+    
+    # Add debugging info
+    add_log(paste("Disclosure percentages:", paste(disc_seq, collapse=", ")))
+    add_log(paste("Delta values:", paste(delta_seq, collapse=", ")))
+    
     # Snapshot inputs
     num_runs_local    <- input$num_runs
     base_params_local <- get_params()
@@ -1145,9 +1229,10 @@ server <- function(input, output, session) {
       N               = seq(input$n_min, input$n_max, by = input$n_step),
       L               = seq(input$l_min, input$l_max, by = input$l_step),
       T               = seq(input$t_min, input$t_max, by = input$t_step),
+      delta           = delta_seq,
       network_type    = net_map[input$network_type_sweep],
       model_version   = input$model_version_sweep,
-      disclosure_pct = disc_seq
+      disclosure_pct  = disc_seq
     )
     
     # Build and replicate parameter combinations
@@ -1158,7 +1243,11 @@ server <- function(input, output, session) {
     
     # Convert percentage to count for each combination
     combos$s <- ceiling((combos$disclosure_pct / 100) * combos$N)
+    # s=0 is now properly handled in the simulation code
     combos$s <- pmin(combos$s, combos$N)
+    
+    # Log the s values for debugging
+    add_log(paste("s values after conversion:", paste(unique(combos$s), collapse=", ")))
     
     # Run sweep with progress bar
     withProgress(message = "Running parameter sweep...", value = 0, {
@@ -1169,6 +1258,9 @@ server <- function(input, output, session) {
         params <- base_params_local
         for (nm in names(param_grid_local))
           params[[nm]] <- combos[i, nm]
+        
+        # Make sure delta is explicitly set (important!)
+        params$delta <- combos[i, "delta"]
         
         # Perform simulation and extract final metrics
         sim_res <- run_simulation(params)
@@ -1181,7 +1273,10 @@ server <- function(input, output, session) {
           N            = params$N,
           L            = params$L,
           T            = params$T,
-          s            = params$s,        
+          s            = params$s,   
+          # Store the original percentage from the parameter grid
+          # (not the recalculated one that might be different for s=1)
+          disclosure_pct = combos[i, "disclosure_pct"],
           delta        = params$delta,    
           network_type = params$network_type,
           model_version = params$model_version,
@@ -1215,6 +1310,18 @@ server <- function(input, output, session) {
     values$sweep_results <- dplyr::bind_rows(results_list)
     add_log("Parameter sweep completed successfully!")
     values$is_running <- FALSE
+    
+    # Show plot containers and hide warning messages using direct JavaScript
+    runjs("
+      // Hide warning messages
+      $('#no_data_warning_trend').hide();
+      $('#no_data_warning_violin').hide();
+      
+      // Show plot containers
+      $('#trend_plot_container').show();
+      $('#violin_plot_container').show();
+    ")
+    
     updateProgressBar(session, "progress", value = 100)
   })
   
@@ -1239,9 +1346,9 @@ server <- function(input, output, session) {
       updateNumericInput(session, "t_max",  value = 3)
       updateNumericInput(session, "t_step", value = 2)
       
-      updateNumericInput(session, "delta_min",  value = 0.5)
-      updateNumericInput(session, "delta_max",  value = 0.5)
-      updateNumericInput(session, "delta_step", value = 0.1)
+      updateNumericInput(session, "delta_min",  value = 0.0)
+      updateNumericInput(session, "delta_max",  value = 1.0)
+      updateNumericInput(session, "delta_step", value = 0.5)
       
       updateNumericInput(session, "disclosure_pct_min",  value = 0)
       updateNumericInput(session, "disclosure_pct_max",  value = 100)
@@ -1347,17 +1454,49 @@ server <- function(input, output, session) {
       "dynamic" = "Dynamic Network"
     )
     
+    # Add debugging to inspect data
+    print("Sweep results column names:")
+    print(colnames(values$sweep_results))
+    print("Selected metrics:")
+    print(input$violin_metrics)
+    
     # Filter and reshape data for plotting
+    # First verify if all selected metrics exist in the data
+    missing_metrics <- setdiff(input$violin_metrics, colnames(values$sweep_results))
+    if (length(missing_metrics) > 0) {
+      print(paste("WARNING: Missing metrics in data:", paste(missing_metrics, collapse=", ")))
+      # Use only metrics that exist in the data
+      available_metrics <- intersect(input$violin_metrics, colnames(values$sweep_results))
+      if (length(available_metrics) == 0) {
+        # Return empty plot if no valid metrics
+        return(ggplotly(ggplot() + 
+          annotate("text", x = 0.5, y = 0.5, label = "No valid metrics selected") +
+          theme_void()))
+      }
+    } else {
+      available_metrics <- input$violin_metrics
+    }
+    
     plot_data <- values$sweep_results %>%
-      select(model_version, all_of(input$violin_metrics)) %>%
+      select(model_version, all_of(available_metrics)) %>%
       pivot_longer(
-        cols = all_of(input$violin_metrics),
+        cols = all_of(available_metrics),
         names_to = "metric",
         values_to = "value"
-      ) %>%
-      # Add display names
+      ) 
+    
+    # Check for NA values that could cause issues
+    na_count <- sum(is.na(plot_data$value))
+    if (na_count > 0) {
+      print(paste("WARNING:", na_count, "NA values found in the data"))
+      # Remove NA values to prevent plotting errors
+      plot_data <- plot_data %>% filter(!is.na(value))
+    }
+    
+    # Add display names - make sure to handle potentially missing values in metric_labels
+    plot_data <- plot_data %>%
       mutate(
-        metric_label = factor(metric_labels[metric], levels = metric_labels[input$violin_metrics]),
+        metric_label = factor(metric_labels[metric], levels = metric_labels[available_metrics]),
         model_version_label = factor(model_labels[model_version], levels = model_labels)
       )
     
@@ -1367,30 +1506,75 @@ server <- function(input, output, session) {
       "Dynamic Network" = "#F28E2B"  # Orange
     )
     
-    # Create plot
-    p <- ggplot(plot_data, aes(x = model_version_label, y = value, fill = model_version_label)) +
-      geom_violin(alpha = 0.7, trim = FALSE) +
-      geom_boxplot(width = 0.1, fill = "white", alpha = 0.5) +
-      facet_wrap(~ metric_label, scales = "free_y", ncol = 1) +
-      scale_fill_manual(values = network_colors) +
-      labs(
-        x = NULL,
-        y = "Value",
-        title = "Comparison of Outcome Measures by Network Type",
-        fill = "Network Type"
-      ) +
-      theme_minimal() +
-      theme(
-        strip.background = element_rect(fill = "#EBF5FB", color = NA),
-        strip.text = element_text(face = "bold", size = 12),
-        legend.position = "top",
-        panel.spacing = unit(1.5, "lines"),
-        plot.title = element_text(hjust = 0.5)
-      )
+    # Print data for debugging
+    print("Plot data structure:")
+    str(plot_data)
     
-    # Convert to plotly for interactivity
-    ggplotly(p, tooltip = c("y", "fill")) %>% 
-      layout(boxmode = "group", height = 250 * length(input$violin_metrics))
+    # Check if we have data to plot
+    if (nrow(plot_data) == 0) {
+      return(ggplotly(ggplot() + 
+        annotate("text", x = 0.5, y = 0.5, label = "No data available for selected metrics") +
+        theme_void()))
+    }
+    
+    # Check if model_version_label is missing or has invalid values
+    if (!"model_version_label" %in% names(plot_data) || all(is.na(plot_data$model_version_label))) {
+      # If model_version is missing, create a simplified plot without it
+      p <- ggplot(plot_data, aes(x = 1, y = value)) +
+        geom_violin(alpha = 0.7, trim = FALSE, fill = "#4E79A7") +
+        geom_boxplot(width = 0.1, fill = "white", alpha = 0.5) +
+        facet_wrap(~ metric_label, scales = "free_y", ncol = 1) +
+        labs(
+          x = NULL,
+          y = "Value",
+          title = "Comparison of Outcome Measures"
+        ) +
+        theme_minimal() +
+        theme(
+          strip.background = element_rect(fill = "#EBF5FB", color = NA),
+          strip.text = element_text(face = "bold", size = 12),
+          axis.text.x = element_blank(), # Hide x-axis labels
+          axis.ticks.x = element_blank(), # Hide x-axis ticks
+          panel.spacing = unit(1.5, "lines"),
+          plot.title = element_text(hjust = 0.5)
+        )
+    } else {
+      # Normal plot with network type
+      p <- ggplot(plot_data, aes(x = model_version_label, y = value, fill = model_version_label)) +
+        geom_violin(alpha = 0.7, trim = FALSE) +
+        geom_boxplot(width = 0.1, fill = "white", alpha = 0.5) +
+        facet_wrap(~ metric_label, scales = "free_y", ncol = 1) +
+        scale_fill_manual(values = network_colors) +
+        labs(
+          x = NULL,
+          y = "Value",
+          title = "Comparison of Outcome Measures by Network Type",
+          fill = "Network Type"
+        ) +
+        theme_minimal() +
+        theme(
+          strip.background = element_rect(fill = "#EBF5FB", color = NA),
+          strip.text = element_text(face = "bold", size = 12),
+          legend.position = "top",
+          panel.spacing = unit(1.5, "lines"),
+          plot.title = element_text(hjust = 0.5)
+        )
+    }
+    
+    # Use tryCatch to handle potential errors during plotly conversion
+    result <- tryCatch({
+      # Convert to plotly for interactivity, using simple tooltips to avoid errors
+      ggplotly(p, tooltip = "y") %>% 
+        layout(boxmode = "group", height = 250 * length(available_metrics))
+    }, error = function(e) {
+      # If there's an error, return a simple error message plot
+      print(paste("Error in ggplotly conversion:", e$message))
+      ggplotly(ggplot() + 
+        annotate("text", x = 0.5, y = 0.5, label = paste("Error creating plot:", e$message)) +
+        theme_void())
+    })
+    
+    return(result)
   })
   
   # Sweep results table
@@ -1459,8 +1643,14 @@ server <- function(input, output, session) {
       "delta" = input$delta_step
     )
     
+    # Debug info
+    print(paste("x_param:", x_param))
+    print(paste("min:", x_min, "max:", x_max, "step:", x_step))
+    
     # Create sequence for x-axis breaks
     x_breaks <- seq(x_min, x_max, by = x_step)
+    print("X-axis breaks:")
+    print(x_breaks)
     
     # Create a mapping of metrics to readable labels
     metric_labels <- c(
@@ -1481,6 +1671,55 @@ server <- function(input, output, session) {
       "final_gini" = "Gini Coefficient"
     )
     
+    # Add debug info to see available columns and data structure
+    print("Available columns in sweep_results:")
+    print(names(values$sweep_results))
+    
+    if (!is.null(values$sweep_results) && nrow(values$sweep_results) > 0) {
+      print("First row of sweep_results:")
+      print(values$sweep_results[1, ])
+      
+      # Check if disclosure_pct exists and has data
+      if ("disclosure_pct" %in% names(values$sweep_results)) {
+        print("disclosure_pct column exists")
+        print("Summary of disclosure_pct values:")
+        print(summary(values$sweep_results$disclosure_pct))
+      } else {
+        print("disclosure_pct column DOES NOT exist!")
+      }
+    } else {
+      print("WARNING: sweep_results is empty or NULL!")
+    }
+    
+    # Map UI parameter name to data column name
+    data_param <- switch(
+      x_param,
+      "N" = "N",
+      "L" = "L",
+      "T" = "T",
+      "s" = ifelse("disclosure_pct" %in% names(values$sweep_results), 
+                   "disclosure_pct",  # Use disclosure_pct if it exists
+                   ifelse("s" %in% names(values$sweep_results), 
+                          "s",        # Otherwise use s as fallback
+                          NA)),       # NA if neither exists
+      "delta" = "delta",
+      NA
+    )
+    
+    print(paste("UI parameter:", x_param, "-> Data parameter:", data_param))
+    
+    # Check if parameter exists in data
+    if (is.na(data_param) || !data_param %in% names(values$sweep_results)) {
+      print(paste("WARNING: Parameter", x_param, "not found in data!"))
+      # Create a safe plot with message
+      p <- ggplot() + 
+        annotate("text", x = 0.5, y = 0.5, 
+                 label = paste("Parameter", x_param, "not found in sweep results data.")) +
+        theme_void()
+      return(ggplotly(p))
+    }
+    
+    # Continue with filtering and plotting
     df <- values$sweep_results %>%
       pivot_longer(
         cols      = starts_with("final_"),
@@ -1490,14 +1729,86 @@ server <- function(input, output, session) {
       filter(
         (input$trend_group == "similarity" & metric %in% similarity_metrics) |
           (input$trend_group == "other" & !(metric %in% similarity_metrics))
-      ) %>%
-      filter(.data[[x_param]] %in% x_breaks) %>%  # Filter to exact parameter values
-      # Add readable metric labels
-      mutate(metric_label = factor(metric_labels[metric], levels = metric_labels))
+      )
     
-    summary_df <- df %>%
-      group_by(x = .data[[x_param]], model_version, metric, metric_label) %>%
-      summarise(mean = mean(value), .groups = "drop")
+    # Check if we can safely filter by parameter
+    if (data_param %in% names(df)) {
+      # Get unique values to see what we're working with
+      print(paste("Unique values of", data_param, "in data:"))
+      print(unique(df[[data_param]]))
+      
+      # Check if any values match our x_breaks
+      matching_values <- df[[data_param]][df[[data_param]] %in% x_breaks]
+      print("Values that match x_breaks:")
+      print(matching_values)
+      print(paste("Number of matching rows:", length(matching_values)))
+      
+      # If using disclosure_pct or s, try to be more flexible with matching
+      if ((data_param == "disclosure_pct" || data_param == "s") && length(matching_values) == 0) {
+        print(paste("No exact matches for", data_param, "trying approximate matching..."))
+        
+        # Try to find closest values
+        all_values <- sort(unique(df[[data_param]]))
+        print("All available values:")
+        print(all_values)
+        
+        # Calculate actual values in the data that are closest to our breaks
+        closest_values <- sapply(x_breaks, function(x) {
+          all_values[which.min(abs(all_values - x))]
+        })
+        print("Using closest values to x_breaks:")
+        print(closest_values)
+        
+        # Filter to these closest values
+        df <- df %>% 
+          filter(.data[[data_param]] %in% closest_values) %>%
+          # Add readable metric labels
+          mutate(
+            metric_label = factor(metric_labels[metric], levels = metric_labels),
+            x = .data[[data_param]] # Ensure x is properly set for grouping
+          )
+      } else {
+        # Normal exact matching
+        df <- df %>% 
+          filter(.data[[data_param]] %in% x_breaks) %>%
+          # Add readable metric labels
+          mutate(
+            metric_label = factor(metric_labels[metric], levels = metric_labels),
+            x = .data[[data_param]] # Ensure x is properly set for grouping
+          )
+      }
+    } else {
+      print("Cannot filter by parameter as it doesn't exist in transformed data")
+      df <- df %>% mutate(
+        metric_label = factor(metric_labels[metric], levels = metric_labels),
+        x = 1 # Fallback value for grouping
+      )
+    }
+    
+    # Make sure there's at least one model_version value
+    if (!"model_version" %in% names(df) || length(unique(df$model_version)) == 0) {
+      print("No model_version found in data, adding default")
+      df$model_version <- "static"
+    }
+    
+    # Summarize data if we have valid records
+    if (nrow(df) > 0) {
+      summary_df <- df %>%
+        group_by(x, model_version, metric, metric_label) %>%
+        summarise(mean = mean(value), .groups = "drop")
+        
+      print(paste("Summary data has", nrow(summary_df), "rows"))
+    } else {
+      # Create empty summary with same structure
+      print("WARNING: No data after filtering!")
+      summary_df <- data.frame(
+        x = numeric(0),
+        model_version = character(0),
+        metric = character(0),
+        metric_label = character(0),
+        mean = numeric(0)
+      )
+    }
     
     # Improved x-axis label
     x_axis_label <- switch(
@@ -1522,32 +1833,96 @@ server <- function(input, output, session) {
       "Dynamic Network" = "#F28E2B"  # Orange
     )
     
-    # Define a consistent color palette for metrics
-    # Using a categorical palette from RColorBrewer
-    metric_n <- length(unique(summary_df$metric_label))
-    metric_colors <- colorRampPalette(brewer.pal(min(9, max(3, metric_n)), "Set1"))(metric_n)
-    names(metric_colors) <- unique(summary_df$metric_label)
+    # Define custom colors for each metric type
+    perceived_colors <- c(
+      "Perceived Neighbor Similarity" = "#CC3311",      # Darker red
+      "Perceived Global Similarity" = "#FFAEA5",        # Lighter red
+      "Perceived Similarity Gap" = "#EE7733"            # Medium red/orange
+    )
     
-    p <- ggplot(summary_df, aes(x = x, y = mean, colour = metric_label)) +
-      geom_line(linewidth = 1) +
-      geom_point(size = 2) +
-      facet_wrap(~ model_version, scales = "free_y", labeller = labeller(model_version = model_labels)) +
-      scale_x_continuous(breaks = x_breaks) +
-      scale_color_manual(values = metric_colors) +
-      labs(
-        x = x_axis_label, 
-        y = "Mean Value", 
-        title = paste("Parameter Trends by", x_axis_label)
-      ) +
-      theme_minimal() +
-      theme(
-        legend.position = "bottom",
-        legend.title = element_blank(),
-        legend.text = element_text(size = 9),
-        strip.background = element_rect(fill = "#EBF5FB", color = NA),
-        strip.text = element_text(face = "bold"),
-        panel.grid.minor = element_line(color = "#F8F8F8")
-      )
+    revealed_colors <- c(
+      "Revealed Neighbor Similarity" = "#0077BB",       # Darker blue
+      "Revealed Global Similarity" = "#BBDEFB",         # Lighter blue
+      "Revealed Similarity Gap" = "#33BBEE"             # Medium blue
+    )
+    
+    objective_colors <- c(
+      "Objective Neighbor Similarity" = "#555555",      # Darker gray
+      "Objective Global Similarity" = "#CCCCCC",        # Lighter gray
+      "Objective Similarity Gap" = "#999999"            # Medium gray
+    )
+    
+    # Other metrics get default colors from a palette
+    other_metrics <- setdiff(unique(summary_df$metric_label), 
+                             c(names(perceived_colors), names(revealed_colors), names(objective_colors)))
+    other_colors <- NULL
+    if (length(other_metrics) > 0) {
+      other_colors <- colorRampPalette(brewer.pal(min(9, max(3, length(other_metrics))), "Set2"))(length(other_metrics))
+      names(other_colors) <- other_metrics
+    }
+    
+    # Combine all color definitions
+    metric_colors <- c(perceived_colors, revealed_colors, objective_colors, other_colors)
+    
+    # Define line types for each metric
+    line_types <- rep("solid", length(metric_colors))
+    names(line_types) <- names(metric_colors)
+    
+    # Make gap metrics dotted
+    gap_metrics <- c("Perceived Similarity Gap", "Revealed Similarity Gap", "Objective Similarity Gap")
+    line_types[gap_metrics] <- "dotted"
+    
+    # Check if we have data to plot
+    if (nrow(summary_df) == 0) {
+      # Return a message plot if no data
+      p <- ggplot() + 
+        annotate("text", x = 0.5, y = 0.5, 
+                 label = paste("No data available for", x_axis_label)) +
+        theme_void()
+    } else if (length(unique(summary_df$model_version)) == 0) {
+      # Handle case where there's no model_version to facet by
+      p <- ggplot(summary_df, aes(x = x, y = mean, colour = metric_label, linetype = metric_label)) +
+        geom_line(linewidth = 1.8) +
+        scale_x_continuous(breaks = x_breaks) +
+        scale_color_manual(values = metric_colors, name = "Metrics") +
+        scale_linetype_manual(values = line_types, name = "Metrics") +
+        labs(
+          x = x_axis_label, 
+          y = "Mean Value", 
+          title = paste("Parameter Trends by", x_axis_label)
+        ) +
+        theme_minimal() +
+        theme(
+          legend.position = "bottom",
+          legend.title = element_blank(),
+          legend.text = element_text(size = 9),
+          panel.grid.minor = element_line(color = "#F8F8F8"),
+          panel.grid.major = element_line(color = "#E5E5E5")
+        )
+    } else {
+      # Normal case with faceting
+      p <- ggplot(summary_df, aes(x = x, y = mean, colour = metric_label, linetype = metric_label)) +
+        geom_line(linewidth = 1.8) +
+        facet_wrap(~ model_version, scales = "free_y", labeller = labeller(model_version = model_labels)) +
+        scale_x_continuous(breaks = x_breaks) +
+        scale_color_manual(values = metric_colors, name = "Metrics") +
+        scale_linetype_manual(values = line_types, name = "Metrics") +
+        labs(
+          x = x_axis_label, 
+          y = "Mean Value", 
+          title = paste("Parameter Trends by", x_axis_label)
+        ) +
+        theme_minimal() +
+        theme(
+          legend.position = "bottom",
+          legend.title = element_blank(),
+          legend.text = element_text(size = 9),
+          strip.background = element_rect(fill = "#EBF5FB", color = NA),
+          strip.text = element_text(face = "bold"),
+          panel.grid.minor = element_line(color = "#F8F8F8"),
+          panel.grid.major = element_line(color = "#E5E5E5")
+        )
+    }
     
     ggplotly(p, tooltip = c("x", "metric_label", "mean"))
   })
