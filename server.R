@@ -230,17 +230,88 @@ server <- function(input, output, session) {
     params <- get_params()
     print(params)
     
+    # Initialize progress bar
+    updateProgressBar(session, "sim_progress", value = 0)
+    
+    # Set up progress handler that will update the UI
+    progress_handler <- function(value) {
+      session$sendCustomMessage("update_progress", list(id = "sim_progress", value = value))
+    }
+    
     # Run simulation in a separate R process to avoid blocking the UI
     future::plan(future::multisession)
     
     future_promise <- future::future({
-      # Run simulation
-      sim_results <- run_simulation(params)
+      # Run simulation with progress reporting
+      # Note: We can't directly update the UI from within the future, so we'll use a custom
+      # solution to pass progress updates back to the main process
+      
+      # Create a temporary file to store progress
+      progress_file <- tempfile(fileext = ".txt")
+      file.create(progress_file)
+      
+      # Define a callback that writes progress to a file
+      progress_callback <- function(value) {
+        write(as.character(value), progress_file)
+      }
+      
+      # Run simulation with progress tracking
+      sim_results <- run_simulation(params, progress_callback)
       processed_results <- process_simulation_results(sim_results)
       
-      # Return both raw and processed results
-      list(sim_results = sim_results, processed_results = processed_results)
+      # Return both raw and processed results, plus path to progress file
+      list(
+        sim_results = sim_results, 
+        processed_results = processed_results,
+        progress_file = progress_file
+      )
     }, seed = TRUE) # Set RNG seed
+    
+    # Set up observer to periodically check progress file
+    progress_observer <- observe({
+      invalidateLater(100, session) # Check progress every 100ms
+      
+      # Get the path to the progress file from the future's value if available
+      progress_file <- NULL
+      if (future::resolved(future_promise)) {
+        tryCatch({
+          # Try to get the result if it's available
+          result <- future::value(future_promise)
+          if (!is.null(result$progress_file)) {
+            progress_file <- result$progress_file
+          }
+        }, error = function(e) {
+          # If error, just continue - the future might not be resolved yet
+        })
+      } else {
+        # Future is not resolved, try to find the progress file in a conventional place
+        # This is a backup approach and might not work in all environments
+        temp_dir <- tempdir()
+        potential_files <- list.files(temp_dir, pattern = "\\.txt$", full.names = TRUE)
+        if (length(potential_files) > 0) {
+          # Use the most recently modified file
+          progress_file <- potential_files[which.max(file.mtime(potential_files))]
+        }
+      }
+      
+      # If we have a progress file, read the latest progress value
+      if (!is.null(progress_file) && file.exists(progress_file)) {
+        tryCatch({
+          progress_value <- as.numeric(readLines(progress_file, n = 1))
+          if (!is.na(progress_value)) {
+            updateProgressBar(session, "sim_progress", value = progress_value)
+          }
+        }, error = function(e) {
+          # If error reading file, just continue
+        })
+      }
+      
+      # Stop observing once the future is resolved
+      if (future::resolved(future_promise)) {
+        progress_observer$destroy()
+        updateProgressBar(session, "sim_progress", value = 100) # Ensure 100% at completion
+      }
+    })
     
     # Handle the promise when it completes
     promises::then(
@@ -249,15 +320,8 @@ server <- function(input, output, session) {
         values$sim_results <- result$sim_results
         values$processed_results <- result$processed_results
         
-        # For simplicity, the final network is used for each round,
-        # but in a real app you'd store the actual state at each round.
-        values$network_states <- lapply(1:params$T, function(t) {
-          if (t == 1) {
-            return(values$sim_results$final_network)
-          } else {
-            return(values$sim_results$final_network)
-          }
-        })
+        # Use the actual network state at each round from network_history
+        values$network_states <- values$sim_results$network_history
         
         
         # --- NEW CODE: Prepare data for visNetwork animation ---
@@ -270,8 +334,7 @@ server <- function(input, output, session) {
         values$vis_nodes <- vector("list", params$T)
         values$vis_edges <- vector("list", params$T)
         
-        # Because your example reuses the final network for each round,
-        # we'll do the same for demonstration:
+        # Use the network state from each round:
         for (r in seq_len(params$T)) {
           g_r <- values$network_states[[r]]
           
@@ -280,11 +343,30 @@ server <- function(input, output, session) {
                                        x = coords[, 1],
                                        y = coords[, 2])
           
-          # Minimal color assignment here; you can override in renderVisNetwork
-          # For demonstration, let's color all nodes the same:
-          node_positions$color <- "lightblue"
-          node_positions$label <- paste("Node", node_positions$id)
-          node_positions$size  <- 20
+          # Color nodes based on their perceived similarity in this round
+          # Calculate average perceived similarity for each node
+          if (length(values$sim_results$rounds) >= r) {
+            perceived_similarity_matrix <- values$sim_results$rounds[[r]]$similarity$similarity_matrices$perceived
+            avg_similarities <- rowMeans(perceived_similarity_matrix, na.rm = TRUE)
+            
+            # Normalize for color mapping (0 to 1 scale)
+            similarity_normalized <- (avg_similarities - min(avg_similarities)) / 
+              (max(avg_similarities) - min(avg_similarities) + 1e-10) # Add small epsilon to avoid division by zero
+            
+            # Generate colors from blue to red
+            node_colors <- colorRampPalette(c("blue", "lightblue", "lightpink", "red"))(100)
+            color_idx <- ceiling(similarity_normalized * 99) + 1 # Scale to 1-100
+            node_positions$color <- node_colors[color_idx]
+            node_positions$similarity <- avg_similarities
+            node_positions$title <- paste0("Node ", node_positions$id, "<br>Sim: ", round(avg_similarities, 3))
+          } else {
+            # Fallback if we don't have similarity data
+            node_positions$color <- "lightblue"
+            node_positions$title <- paste("Node", node_positions$id)
+          }
+          
+          node_positions$label <- paste("", node_positions$id) # Show just the ID number
+          node_positions$size <- 20
           
           # Build edges from igraph
           edge_df <- get.data.frame(g_r, "edges")
@@ -310,10 +392,14 @@ server <- function(input, output, session) {
         )
         
         add_log("Simulation completed successfully!")
+        # Set progress to 100% for completion
+        updateProgressBar(session, "sim_progress", value = 100)
         values$is_running <- FALSE
       },
       onRejected = function(error) {
         add_log(paste("Error in simulation:", error$message))
+        # Reset progress bar on error
+        updateProgressBar(session, "sim_progress", value = 0)
         values$is_running <- FALSE
       }
     )
@@ -568,7 +654,8 @@ server <- function(input, output, session) {
     # OPTIONAL: If you want the color_by logic to match your static plot,
     # you could recalc color here. But for now we'll show the stored color.
     
-    visNetwork(
+    # Create network visualization
+    vis <- visNetwork(
       nodes = node_data,
       edges = edge_data,
       width = "100%",
@@ -580,7 +667,30 @@ server <- function(input, output, session) {
                  nodesIdSelection = TRUE) %>%
       visInteraction(dragNodes = FALSE,
                      dragView = TRUE,
-                     zoomView = TRUE)
+                     zoomView = TRUE) %>%
+      visLegend(addNodes = list(
+        list(label = "Low Similarity", shape = "dot", color = "blue", size = 10),
+        list(label = "Medium Similarity", shape = "dot", color = "lightblue", size = 10),
+        list(label = "High Similarity", shape = "dot", color = "lightpink", size = 10),
+        list(label = "Very High Similarity", shape = "dot", color = "red", size = 10)
+      ), useGroups = FALSE) %>%
+      visLayout(randomSeed = 123) # Use consistent layout across frames
+    
+    # Add title showing the current round
+    vis <- vis %>%
+      htmlwidgets::onRender(paste0("
+        function(el, x) {
+          // Add a title to the network visualization
+          var titleDiv = document.createElement('div');
+          titleDiv.style.textAlign = 'center';
+          titleDiv.style.fontWeight = 'bold';
+          titleDiv.style.marginBottom = '10px';
+          titleDiv.innerHTML = 'Network at Round ", r, "';
+          el.insertBefore(titleDiv, el.firstChild);
+        }
+      "))
+    
+    vis
   })
   
   ### Parameter sweep functionality

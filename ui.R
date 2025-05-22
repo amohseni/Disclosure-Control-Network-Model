@@ -35,6 +35,14 @@ ui <- dashboardPage(
   dashboardBody(
     shinyjs::useShinyjs(),
     includeCSS("www/style.css"),
+    # Add custom JS for direct progress bar updates
+    tags$script(HTML("
+      Shiny.addCustomMessageHandler('update_progress', function(message) {
+        var id = message.id;
+        var value = message.value;
+        Shiny.setProgressBar(document.getElementById(id), value / 100);
+      });
+    ")),
     tabItems(
       tabItem(
         ## ---------- SIMULATION PAGE ----------
@@ -58,6 +66,13 @@ ui <- dashboardPage(
               br(),
               downloadButton("download_results", "Download Results", style = "width: 80%; box-sizing: border-box; margin: auto; display: block;"),
               br(),
+              div(style = "margin-top: 10px;", h6("Simulation Progress")),
+              shinydashboard::box(
+                width = NULL, 
+                solidHeader = FALSE, 
+                style = "padding: 0px;",
+                shiny::progressBar("sim_progress", value = 0, display_pct = TRUE, size = "xs", color = "light-blue", striped = TRUE)
+              ),
               div(style = "margin-top: 20px;", h6("Status Log")),
               div(style = "height: 275px; overflow: auto; padding-top: 10px", verbatimTextOutput("status_log_sim"))
             ),
@@ -228,6 +243,8 @@ ui <- dashboardPage(
             box(
               title = "Animation Controls",
               width = 3,
+              p("The network visualization shows how agents form and break connections over time based on perceived similarity."),
+              p("In dynamic mode, watch as agents rewire from poorly-matched to better-matched neighbors."),
               sliderInput(
                 "anim_round",
                 "Animation Round:",

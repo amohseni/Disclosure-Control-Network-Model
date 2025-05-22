@@ -709,8 +709,9 @@ run_simulation_round <- function(graph,
 #' Run a complete simulation
 #'
 #' @param params List of simulation parameters
+#' @param progress_callback Optional callback function to report progress (0-100)
 #' @return List of simulation results
-run_simulation <- function(params) {
+run_simulation <- function(params, progress_callback = NULL) {
   # Extract parameters
   N <- params$N
   L <- params$L
@@ -737,7 +738,8 @@ run_simulation <- function(params) {
   results <- list(
     params = params,
     rounds = list(),
-    disclosure_history = list()
+    disclosure_history = list(),
+    network_history = list()  # Add storage for network at each round
   )
   
   # Run simulation for T rounds
@@ -752,6 +754,14 @@ run_simulation <- function(params) {
     # Store results
     results$rounds[[t]] <- round_result$outcomes
     results$disclosure_history[[t]] <- round_result$outcomes$actions
+    # Store current network state for this round
+    results$network_history[[t]] <- graph
+    
+    # Report progress if callback is provided
+    if (!is.null(progress_callback)) {
+      progress_percent <- round(100 * t / T)
+      progress_callback(progress_percent)
+    }
   }
   
   # Calculate overall disclosure metrics
