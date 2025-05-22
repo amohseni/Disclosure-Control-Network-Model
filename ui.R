@@ -48,13 +48,6 @@ ui <- dashboardPage(
             box(
               title = "Controls",
               width = 3,
-              selectInput(
-                "plot_type",
-                "Plot Type:",
-                choices = c("Similarity", "Polarization", "Network Metrics", "Welfare"),
-                selected = "Similarity"
-              ),
-              br(),
               actionButton(
                 "run",
                 "Run Simulation",
@@ -220,6 +213,13 @@ ui <- dashboardPage(
             box(
               title = NULL,
               width = 6,
+              selectInput(
+                width = 150,
+                "plot_type",
+                "Plot Type:",
+                choices = c("Similarity", "Polarization", "Network Metrics", "Welfare"),
+                selected = "Similarity"
+              ),
               plotlyOutput("time_series_plotly", height = "400px")
             )
           )),

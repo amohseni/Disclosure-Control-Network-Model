@@ -49,6 +49,29 @@
   padding: 15px !important;
 }
 
+/* Match margins of box elements in parameter sweep panel to simulation inputs */
+#sweep .box {
+  box-shadow: none !important;
+  border-top: none !important;
+  margin-bottom: 0 !important;
+}
+
+/* Apply specific styling to sweep input columns to match simulation inputs */
+#sweep .col-sm-3:nth-child(1) .box-body {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+#sweep .col-sm-3:nth-child(2) .box-body {
+  padding-left: 5px !important;
+  padding-right: 0 !important;
+}
+
+#sweep .col-sm-3:nth-child(3) .box-body {
+  padding-left: 10px !important;
+  padding-right: 0 !important;
+}
+
 /* Add consistent margin for trend and comparison containers */
 #trend_plot_container, #violin_plot_container {
   padding: 15px !important;
@@ -85,7 +108,7 @@ h6 {
 .shiny-text-output, 
 #status_log, 
 #status_log_sim {
-  font-size: 9px !important; /* 3pt smaller */
+  font-size: 10px !important; /* 2pt smaller */
   font-family: 'Consolas', 'Monaco', monospace !important;
   line-height: 1.2 !important;
 }
