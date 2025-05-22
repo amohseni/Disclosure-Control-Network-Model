@@ -1,6 +1,30 @@
 ###############################################################
 # Shiny App: Selective Disclosure & Perceptions of Polarization
 ###############################################################
+#
+# This Shiny application visualizes the results of simulations that model
+# how selective disclosure of information affects perceived similarity and 
+# polarization in social networks.
+#
+# Key features:
+# - Interactive simulation with customizable parameters
+# - Parameter sweep functionality to test multiple configurations
+# - Visualizations for time series data and network structures
+# - Comparison tools to analyze the impact of different parameters
+#
+# The application uses a modular structure:
+# 1. Helper functions for UI elements
+# 2. UI definition with multiple tabs
+# 3. Server logic for simulation and visualization
+#
+# Recent updates (May 2025):
+# - Improved parameter sweep visualization in the Trends tab
+# - Enhanced labels and tooltips for better readability
+# - Added consistent color schemes across visualizations
+# - Upgraded violin plots in the Comparisons tab
+# - Improved user interface and documentation
+#
+###############################################################
 
 # Load required libraries
 library(shiny)
@@ -27,10 +51,13 @@ source("Disclosure-Control-Network-Simulation.R", local = TRUE)
 # Helper Functions for UI Elements
 ###############################################################
 
-# --- helper for %||% ----
+# --- Helper function for handling NULL values (%||% operator) ----
+# Returns the first value if not NULL, otherwise returns the second value
 `%||%` <- function(x, y) if (is.null(x)) y else x
 
-## Robust blue palette centered on #337ab7
+# --- Color palette generator ----
+# Creates a consistent blue color palette with specified number of shades
+# Used for visualization consistency throughout the app
 make_blues <- function(n) {
   n <- as.integer(n)
   if (is.na(n) || n < 1)
@@ -43,7 +70,19 @@ make_blues <- function(n) {
   grDevices::colorRampPalette(brewer_colors)(n)
 }
 
-# --- safe future plan ----
+# --- Standard color scheme for consistency across plots ----
+# These colors are used throughout the application for consistent visuals
+app_colors <- list(
+  network_types = c(
+    "Static Network" = "#4E79A7",  # Blue
+    "Dynamic Network" = "#F28E2B"  # Orange
+  ),
+  panel_bg = "#EBF5FB",           # Light blue background for panel headers
+  highlight = "#3498DB"           # Accent color for buttons and important elements
+)
+
+# --- Configure parallel processing based on environment ----
+# Use multisession in interactive mode, sequential otherwise
 if (interactive()) {
   future::plan(multisession)
 } else {
@@ -511,36 +550,40 @@ ui <- dashboardPage(
         tabPanel("Comparisons", fluidRow(
           column(
             3,
-            checkboxGroupInput(
-              "violin_metrics",
-              "Select outcome measures:",
-              choices = c(
-                "final_perceived_neighbor_similarity",
-                "final_perceived_all_similarity",
-                "final_perceived_similarity_gap",
-                "final_objective_neighbor_similarity",
-                "final_objective_all_similarity",
-                "final_objective_similarity_gap",
-                "final_revealed_neighbor_similarity",
-                "final_revealed_all_similarity",
-                "final_revealed_similarity_gap",
-                "final_variance",
-                "final_bimodality",
-                "final_clustering",
-                "final_modularity",
-                "final_mean_welfare",
-                "final_gini"
+            div(
+              style = "padding: 15px; background-color: #f8f9fa; border-radius: 5px;",
+              h4("Comparisons Settings"),
+              checkboxGroupInput(
+                "violin_metrics",
+                "Select outcome measures to compare:",
+                choices = c(
+                  "final_perceived_neighbor_similarity" = "Perceived Neighbor Similarity",
+                  "final_perceived_all_similarity" = "Perceived Global Similarity",
+                  "final_perceived_similarity_gap" = "Perceived Similarity Gap",
+                  "final_objective_neighbor_similarity" = "Objective Neighbor Similarity",
+                  "final_objective_all_similarity" = "Objective Global Similarity",
+                  "final_objective_similarity_gap" = "Objective Similarity Gap",
+                  "final_revealed_neighbor_similarity" = "Revealed Neighbor Similarity",
+                  "final_revealed_all_similarity" = "Revealed Global Similarity",
+                  "final_revealed_similarity_gap" = "Revealed Similarity Gap",
+                  "final_variance" = "Variance",
+                  "final_bimodality" = "Bimodality",
+                  "final_clustering" = "Clustering Coefficient",
+                  "final_modularity" = "Modularity",
+                  "final_mean_welfare" = "Mean Welfare",
+                  "final_gini" = "Gini Coefficient"
+                ),
+                selected = c(
+                  "final_perceived_neighbor_similarity",
+                  "final_perceived_all_similarity",
+                  "final_perceived_similarity_gap"
+                )            
               ),
-              selected = c(
-                "final_perceived_neighbor_similarity",
-                "final_perceived_all_similarity",
-                "final_objective_neighbor_similarity",
-                "final_objective_all_similarity",
-                "final_revealed_neighbor_similarity",
-                "final_revealed_all_similarity"
-              )            
-              )
-          ), column(9, plotlyOutput("violin_plotly", height = "1200px"))
+              hr(),
+              helpText(HTML("<strong>Tip:</strong> Select 2-4 metrics for more readable plots"))
+            )
+          ), 
+          column(9, plotlyOutput("violin_plotly", height = "1200px"))
         )),
       ))
     )
@@ -692,27 +735,45 @@ server <- function(input, output, session) {
   })
   
   # Trend-range slider
+  # Remove the trend_range_ui as we now use the parameter sweep ranges directly
   output$trend_range_ui <- renderUI({
+    # Informational text about how x-axis ranges work
     req(input$trend_x)
-    rng <- switch(
-      input$trend_x,
-      N = seq(input$n_min, input$n_max, by = input$n_step),
-      L = seq(input$l_min, input$l_max, by = input$l_step),
-      T = seq(input$t_min, input$t_max, by = input$t_step),
-      s = seq(
-        input$disclosure_pct_min,
-        input$disclosure_pct_max,
-        by = input$disclosure_pct_step
-      ),
-      delta = seq(input$delta_min, input$delta_max, by = input$delta_step)
+    x_param <- input$trend_x
+    
+    # Get current min, max, step based on selected parameter
+    x_min <- switch(
+      x_param,
+      "N" = input$n_min,
+      "L" = input$l_min,
+      "T" = input$t_min,
+      "s" = input$disclosure_pct_min,
+      "delta" = input$delta_min
     )
-    sliderInput(
-      "trend_range",
-      NULL,
-      min = min(rng),
-      max = max(rng),
-      value = c(min(rng), max(rng)),
-      step = unique(diff(rng))
+    x_max <- switch(
+      x_param,
+      "N" = input$n_max,
+      "L" = input$l_max,
+      "T" = input$t_max,
+      "s" = input$disclosure_pct_max,
+      "delta" = input$delta_max
+    )
+    x_step <- switch(
+      x_param,
+      "N" = input$n_step,
+      "L" = input$l_step,
+      "T" = input$t_step,
+      "s" = input$disclosure_pct_step,
+      "delta" = input$delta_step
+    )
+    
+    div(
+      style = "margin-top: 10px; padding: 10px; background-color: #f8f9fa; border-radius: 4px;",
+      p(strong("X-axis Settings:")),
+      p(paste("Min:", x_min)),
+      p(paste("Max:", x_max)),
+      p(paste("Step:", x_step)),
+      p("(Adjust in Sweep Input tab)")
     )
   })
   
@@ -720,7 +781,7 @@ server <- function(input, output, session) {
   updateCheckboxGroupInput(
     session,
     "violin_metrics",
-    selected = c("final_perceived_similarity_gap", "final_mean_welfare")
+    selected = c("final_perceived_similarity_gap", "final_objective_similarity_gap", "final_revealed_similarity_gap")
   )
   
   # Run simulation when button is clicked (either one)
@@ -1166,25 +1227,25 @@ server <- function(input, output, session) {
       ## ---- MINIMAL --------------------------------------------------
       updateNumericInput(session, "num_runs", value = 1)
       
-      updateNumericInput(session, "n_min",  value = 5)
-      updateNumericInput(session, "n_max",  value = 5)
-      updateNumericInput(session, "n_step", value = 1)
+      updateNumericInput(session, "n_min",  value = 3)
+      updateNumericInput(session, "n_max",  value = 7)
+      updateNumericInput(session, "n_step", value = 2)
       
-      updateNumericInput(session, "l_min",  value = 2)
-      updateNumericInput(session, "l_max",  value = 2)
+      updateNumericInput(session, "l_min",  value = 1)
+      updateNumericInput(session, "l_max",  value = 3)
       updateNumericInput(session, "l_step", value = 1)
       
       updateNumericInput(session, "t_min",  value = 1)
-      updateNumericInput(session, "t_max",  value = 1)
-      updateNumericInput(session, "t_step", value = 1)
+      updateNumericInput(session, "t_max",  value = 3)
+      updateNumericInput(session, "t_step", value = 2)
       
       updateNumericInput(session, "delta_min",  value = 0.5)
       updateNumericInput(session, "delta_max",  value = 0.5)
       updateNumericInput(session, "delta_step", value = 0.1)
       
-      updateNumericInput(session, "disclosure_pct_min",  value = 50)
-      updateNumericInput(session, "disclosure_pct_max",  value = 50)
-      updateNumericInput(session, "disclosure_pct_step", value = 1)
+      updateNumericInput(session, "disclosure_pct_min",  value = 0)
+      updateNumericInput(session, "disclosure_pct_max",  value = 100)
+      updateNumericInput(session, "disclosure_pct_step", value = 50)
       
       updateCheckboxGroupInput(session, "network_type_sweep",
                                selected = "Erdős-Rényi")
@@ -1252,76 +1313,84 @@ server <- function(input, output, session) {
   })
   
   
-  # Sweep results visualization
-  output$sweep_plot <- renderPlot({
-    req(values$sweep_results)
+  # Violin plot visualization
+  output$violin_plotly <- renderPlotly({
+    req(values$sweep_results, input$violin_metrics)
     
-    param_cols <- names(values$sweep_results)[!(
-      names(values$sweep_results) %in%
-        c(
-          "run",
-          "final_neighbor_similarity",
-          "final_all_similarity",
-          "final_similarity_gap",
-          "final_variance",
-          "final_bimodality",
-          "final_clustering",
-          "final_modularity",
-          "final_welfare",
-          "final_gini",
-          "disclosure_rate"
-        )
-    )]
-    
-    if (length(param_cols) >= 2) {
-      x_param <- param_cols[1]
-      color_param <- param_cols[2]
-    } else if (length(param_cols) == 1) {
-      x_param <- param_cols[1]
-      color_param <- "run"
-    } else {
-      return(
-        ggplot() +
-          annotate(
-            "text",
-            x = 0.5,
-            y = 0.5,
-            label = "No parameter sweep data available"
-          ) +
-          theme_void()
-      )
+    # Skip if no metrics selected
+    if (length(input$violin_metrics) == 0) {
+      return(NULL)
     }
     
-    plot_data <- values$sweep_results
+    # Create mapping from technical names to display names
+    metric_labels <- c(
+      "final_perceived_neighbor_similarity" = "Perceived Neighbor Similarity",
+      "final_perceived_all_similarity" = "Perceived Global Similarity",
+      "final_perceived_similarity_gap" = "Perceived Similarity Gap",
+      "final_objective_neighbor_similarity" = "Objective Neighbor Similarity",
+      "final_objective_all_similarity" = "Objective Global Similarity",
+      "final_objective_similarity_gap" = "Objective Similarity Gap",
+      "final_revealed_neighbor_similarity" = "Revealed Neighbor Similarity",
+      "final_revealed_all_similarity" = "Revealed Global Similarity",
+      "final_revealed_similarity_gap" = "Revealed Similarity Gap",
+      "final_variance" = "Variance",
+      "final_bimodality" = "Bimodality",
+      "final_clustering" = "Clustering Coefficient",
+      "final_modularity" = "Modularity",
+      "final_mean_welfare" = "Mean Welfare",
+      "final_gini" = "Gini Coefficient"
+    )
     
-    p <- ggplot(
-      plot_data,
-      aes_string(
-        x = x_param,
-        y = "final_similarity_gap",
-        color = color_param,
-        group = color_param
+    # Better model version labels
+    model_labels <- c(
+      "static" = "Static Network",
+      "dynamic" = "Dynamic Network"
+    )
+    
+    # Filter and reshape data for plotting
+    plot_data <- values$sweep_results %>%
+      select(model_version, all_of(input$violin_metrics)) %>%
+      pivot_longer(
+        cols = all_of(input$violin_metrics),
+        names_to = "metric",
+        values_to = "value"
+      ) %>%
+      # Add display names
+      mutate(
+        metric_label = factor(metric_labels[metric], levels = metric_labels[input$violin_metrics]),
+        model_version_label = factor(model_labels[model_version], levels = model_labels)
       )
-    ) +
-      stat_summary(fun = mean, geom = "line") +
-      stat_summary(fun = mean,
-                   geom = "point",
-                   size = 3) +
-      stat_summary(
-        fun.data = function(x) {
-          data.frame(ymin = mean(x) - sd(x), ymax = mean(x) + sd(x))
-        },
-        geom = "errorbar",
-        width = 0.2
-      ) +
-      facet_wrap( ~ "Similarity Gap") +
-      labs(title = "Parameter Sweep Results",
-           x = gsub("_", " ", toupper(x_param)),
-           y = "Value") +
-      theme_minimal() +
-      theme(legend.title = element_text(face = "bold"))
     
-    return(p)
+    # Define a consistent color palette for network types
+    network_colors <- c(
+      "Static Network" = "#4E79A7",  # Blue
+      "Dynamic Network" = "#F28E2B"  # Orange
+    )
+    
+    # Create plot
+    p <- ggplot(plot_data, aes(x = model_version_label, y = value, fill = model_version_label)) +
+      geom_violin(alpha = 0.7, trim = FALSE) +
+      geom_boxplot(width = 0.1, fill = "white", alpha = 0.5) +
+      facet_wrap(~ metric_label, scales = "free_y", ncol = 1) +
+      scale_fill_manual(values = network_colors) +
+      labs(
+        x = NULL,
+        y = "Value",
+        title = "Comparison of Outcome Measures by Network Type",
+        fill = "Network Type"
+      ) +
+      theme_minimal() +
+      theme(
+        strip.background = element_rect(fill = "#EBF5FB", color = NA),
+        strip.text = element_text(face = "bold", size = 12),
+        legend.position = "top",
+        panel.spacing = unit(1.5, "lines"),
+        plot.title = element_text(hjust = 0.5)
+      )
+    
+    # Convert to plotly for interactivity
+    ggplotly(p, tooltip = c("y", "fill")) %>% 
+      layout(boxmode = "group", height = 250 * length(input$violin_metrics))
   })
   
   # Sweep results table
@@ -1349,7 +1418,6 @@ server <- function(input, output, session) {
   # ---- trend plot  -----------------------------------------------------------
   output$trend_plotly <- renderPlotly({
     req(values$sweep_results,
-        input$trend_range,
         input$trend_group)
     
     similarity_metrics <- c(
@@ -1364,6 +1432,55 @@ server <- function(input, output, session) {
       "final_revealed_similarity_gap"
     )
     
+    # Get x-axis parameter information from inputs
+    x_param <- input$trend_x
+    x_min <- switch(
+      x_param,
+      "N" = input$n_min,
+      "L" = input$l_min,
+      "T" = input$t_min,
+      "s" = input$disclosure_pct_min,
+      "delta" = input$delta_min
+    )
+    x_max <- switch(
+      x_param,
+      "N" = input$n_max,
+      "L" = input$l_max,
+      "T" = input$t_max,
+      "s" = input$disclosure_pct_max,
+      "delta" = input$delta_max
+    )
+    x_step <- switch(
+      x_param,
+      "N" = input$n_step,
+      "L" = input$l_step,
+      "T" = input$t_step,
+      "s" = input$disclosure_pct_step,
+      "delta" = input$delta_step
+    )
+    
+    # Create sequence for x-axis breaks
+    x_breaks <- seq(x_min, x_max, by = x_step)
+    
+    # Create a mapping of metrics to readable labels
+    metric_labels <- c(
+      "final_perceived_neighbor_similarity" = "Perceived Neighbor Similarity",
+      "final_perceived_all_similarity" = "Perceived Global Similarity",
+      "final_perceived_similarity_gap" = "Perceived Similarity Gap",
+      "final_objective_neighbor_similarity" = "Objective Neighbor Similarity",
+      "final_objective_all_similarity" = "Objective Global Similarity",
+      "final_objective_similarity_gap" = "Objective Similarity Gap",
+      "final_revealed_neighbor_similarity" = "Revealed Neighbor Similarity",
+      "final_revealed_all_similarity" = "Revealed Global Similarity",
+      "final_revealed_similarity_gap" = "Revealed Similarity Gap",
+      "final_variance" = "Variance",
+      "final_bimodality" = "Bimodality",
+      "final_clustering" = "Clustering Coefficient",
+      "final_modularity" = "Modularity",
+      "final_mean_welfare" = "Mean Welfare",
+      "final_gini" = "Gini Coefficient"
+    )
+    
     df <- values$sweep_results %>%
       pivot_longer(
         cols      = starts_with("final_"),
@@ -1372,22 +1489,67 @@ server <- function(input, output, session) {
       ) %>%
       filter(
         (input$trend_group == "similarity" & metric %in% similarity_metrics) |
-          (input$trend_group == "other"       & !(metric %in% similarity_metrics))
+          (input$trend_group == "other" & !(metric %in% similarity_metrics))
       ) %>%
-      filter(between(.data[[input$trend_x]], input$trend_range[1], input$trend_range[2]))
+      filter(.data[[x_param]] %in% x_breaks) %>%  # Filter to exact parameter values
+      # Add readable metric labels
+      mutate(metric_label = factor(metric_labels[metric], levels = metric_labels))
     
     summary_df <- df %>%
-      group_by(x = .data[[input$trend_x]], model_version, metric) %>%
-      summarise(mean = mean(value), sd = sd(value), .groups = "drop")
+      group_by(x = .data[[x_param]], model_version, metric, metric_label) %>%
+      summarise(mean = mean(value), .groups = "drop")
     
-    p <- ggplot(summary_df, aes(x = x, y = mean, colour = metric)) +
-      geom_line() +
-      geom_ribbon(aes(ymin = mean - sd, ymax = mean + sd, fill = metric), alpha = 0.2) +
-      facet_wrap(~ model_version, scales = "free_x") +
-      labs(x = input$trend_x, y = "Mean ± SD", title = "Parameter Trends") +
-      theme_minimal()
+    # Improved x-axis label
+    x_axis_label <- switch(
+      x_param,
+      "N" = "Number of Agents (N)",
+      "L" = "Type Vector Length (L)",
+      "T" = "Number of Rounds (T)",
+      "s" = "Disclosure Size (%)",
+      "delta" = "Influence Decay Factor (δ)",
+      x_param
+    )
     
-    ggplotly(p, tooltip = c("x", "metric", "mean", "sd"))
+    # Better facet labels for model version
+    model_labels <- c(
+      "static" = "Static Network",
+      "dynamic" = "Dynamic Network"
+    )
+    
+    # Define a consistent color palette for model versions
+    network_colors <- c(
+      "Static Network" = "#4E79A7",  # Blue
+      "Dynamic Network" = "#F28E2B"  # Orange
+    )
+    
+    # Define a consistent color palette for metrics
+    # Using a categorical palette from RColorBrewer
+    metric_n <- length(unique(summary_df$metric_label))
+    metric_colors <- colorRampPalette(brewer.pal(min(9, max(3, metric_n)), "Set1"))(metric_n)
+    names(metric_colors) <- unique(summary_df$metric_label)
+    
+    p <- ggplot(summary_df, aes(x = x, y = mean, colour = metric_label)) +
+      geom_line(linewidth = 1) +
+      geom_point(size = 2) +
+      facet_wrap(~ model_version, scales = "free_y", labeller = labeller(model_version = model_labels)) +
+      scale_x_continuous(breaks = x_breaks) +
+      scale_color_manual(values = metric_colors) +
+      labs(
+        x = x_axis_label, 
+        y = "Mean Value", 
+        title = paste("Parameter Trends by", x_axis_label)
+      ) +
+      theme_minimal() +
+      theme(
+        legend.position = "bottom",
+        legend.title = element_blank(),
+        legend.text = element_text(size = 9),
+        strip.background = element_rect(fill = "#EBF5FB", color = NA),
+        strip.text = element_text(face = "bold"),
+        panel.grid.minor = element_line(color = "#F8F8F8")
+      )
+    
+    ggplotly(p, tooltip = c("x", "metric_label", "mean"))
   })
   
   # Download handlers
