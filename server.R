@@ -1393,7 +1393,10 @@ server <- function(input, output, session) {
         plotly::layout(
           title = "Static Network",
           xaxis = list(title = x_axis_label),
-          yaxis = list(title = "Mean Value")
+          yaxis = list(
+            title = "Mean Value",
+            range = c(regular_min, regular_max)
+          )
         )
       
       # Create Dynamic Network plot  
@@ -1401,7 +1404,11 @@ server <- function(input, output, session) {
         plotly::layout(
           title = "Dynamic Network",
           xaxis = list(title = x_axis_label),
-          yaxis = list(title = "Mean Value")
+          yaxis = list(
+            title = "",  # Remove title
+            showticklabels = FALSE,  # Hide tick labels
+            range = c(regular_min, regular_max)  # Keep range for consistency
+          )
         )
       
       # Add traces for static networks
@@ -1479,13 +1486,15 @@ server <- function(input, output, session) {
           empty_plot,
           nrows = 2,
           shareX = TRUE,
-          margin = 0.05,
+          shareY = TRUE,  # Share y-axis scale between plots in the same row
+          margin = 0.02,  # Reduce margin between subplots
           titleX = TRUE,
           titleY = TRUE
         ) %>% plotly::layout(
           font = list(family = "Roboto"),
           height = 900,
           showlegend = TRUE,
+          uniformtext = list(minsize = 10, mode = 'show'),
           margin = list(t = 100, b = 100, r = 120),
           title = list(
             text = paste("Parameter Trends by", x_axis_label),
@@ -1505,7 +1514,7 @@ server <- function(input, output, session) {
             # Column titles
             list(
               text = "Static Network",
-              x = 0.25,
+              x = 0.15,
               y = 1.05,
               xref = "paper",
               yref = "paper",
@@ -1514,7 +1523,7 @@ server <- function(input, output, session) {
             ),
             list(
               text = "Dynamic Network",
-              x = 0.75,
+              x = 0.85,
               y = 1.05,
               xref = "paper",
               yref = "paper",
@@ -1542,6 +1551,28 @@ server <- function(input, output, session) {
     
     dynamic_gap_data <- summary_df %>%
       filter(model_version == "dynamic" & metric %in% gap_metrics)
+    
+    # Calculate consistent y-axis ranges for regular metrics
+    regular_min <- min(c(
+      min(static_regular_data$mean, na.rm = TRUE),
+      min(dynamic_regular_data$mean, na.rm = TRUE)
+    ), na.rm = TRUE)
+    
+    regular_max <- max(c(
+      max(static_regular_data$mean, na.rm = TRUE),
+      max(dynamic_regular_data$mean, na.rm = TRUE)
+    ), na.rm = TRUE)
+    
+    # Calculate consistent y-axis ranges for gap metrics
+    gap_min <- min(c(
+      min(static_gap_data$mean, na.rm = TRUE),
+      min(dynamic_gap_data$mean, na.rm = TRUE)
+    ), na.rm = TRUE)
+    
+    gap_max <- max(c(
+      max(static_gap_data$mean, na.rm = TRUE),
+      max(dynamic_gap_data$mean, na.rm = TRUE)
+    ), na.rm = TRUE)
     
     # Create a list to track which metrics have been added to the legend
     added_to_legend <- list()
@@ -1588,7 +1619,10 @@ server <- function(input, output, session) {
         plotly::layout(
           title = "Static Network - Regular Metrics",
           xaxis = list(title = x_axis_label),
-          yaxis = list(title = "Mean Value")
+          yaxis = list(
+            title = "Mean Value",
+            range = c(regular_min, regular_max)  # Consistent y-axis range
+          )
         )
       
       for (m in unique(static_regular_data$metric_label)) {
@@ -1624,7 +1658,11 @@ server <- function(input, output, session) {
         plotly::layout(
           title = "Dynamic Network - Regular Metrics",
           xaxis = list(title = x_axis_label),
-          yaxis = list(title = "Mean Value")
+          yaxis = list(
+            title = "",  # Remove title
+            showticklabels = FALSE,  # Hide tick labels
+            range = c(regular_min, regular_max)  # Keep consistent range
+          )
         )
       
       for (m in unique(dynamic_regular_data$metric_label)) {
@@ -1660,7 +1698,10 @@ server <- function(input, output, session) {
         plotly::layout(
           title = "Static Network - Gap Metrics",
           xaxis = list(title = x_axis_label),
-          yaxis = list(title = "Mean Value")
+          yaxis = list(
+            title = "Mean Value",
+            range = c(gap_min, gap_max)  # Consistent y-axis range
+          )
         )
       
       for (m in unique(static_gap_data$metric_label)) {
@@ -1697,7 +1738,11 @@ server <- function(input, output, session) {
         plotly::layout(
           title = "Dynamic Network - Gap Metrics",
           xaxis = list(title = x_axis_label),
-          yaxis = list(title = "Mean Value")
+          yaxis = list(
+            title = "",  # Remove title
+            showticklabels = FALSE,  # Hide tick labels
+            range = c(gap_min, gap_max)  # Consistent y-axis range
+          )
         )
       
       for (m in unique(dynamic_gap_data$metric_label)) {
@@ -1737,7 +1782,8 @@ server <- function(input, output, session) {
         dynamic_gap_plot,
         nrows = 2,
         shareX = TRUE,
-        margin = 0.05,
+        shareY = TRUE,  # Share y-axis scale between plots in the same row
+        margin = 0.02,  # Reduce margin between subplots
         titleX = TRUE,
         titleY = TRUE
       ) %>% plotly::layout(
@@ -1764,7 +1810,7 @@ server <- function(input, output, session) {
           # Column titles
           list(
             text = "Static Network",
-            x = 0.25,  # Position for left column
+            x = 0.15,  # Position for left column
             y = 1.05,  # Position above the plots
             xref = "paper",
             yref = "paper",
@@ -1773,7 +1819,7 @@ server <- function(input, output, session) {
           ),
           list(
             text = "Dynamic Network",
-            x = 0.75,  # Position for right column
+            x = 0.85,  # Position for right column
             y = 1.05,  # Position above the plots
             xref = "paper",
             yref = "paper",

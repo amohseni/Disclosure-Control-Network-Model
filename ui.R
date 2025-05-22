@@ -80,6 +80,7 @@ ui <- dashboardPage(
                 value = 40
               ),
               helpText("Number of agents in the network."),
+              hr(style = "margin-top: 20px; margin-bottom: 20px;"),
               sliderInput(
                 "L",
                 "Length of Type Vector (L):",
@@ -88,6 +89,7 @@ ui <- dashboardPage(
                 value = 3
               ),
               helpText("Number of traits per agent."),
+              hr(style = "margin-top: 20px; margin-bottom: 20px;"),
               sliderInput(
                 "T",
                 "Number of Rounds (T):",
@@ -96,7 +98,7 @@ ui <- dashboardPage(
                 value = 20
               ),
               helpText("Total number of simulation rounds."),
-              
+              hr(style = "margin-top: 20px; margin-bottom: 20px;"),
               sliderInput(
                 "delta",
                 "Influence Decay Factor (δ):",
@@ -105,13 +107,13 @@ ui <- dashboardPage(
                 value = 0.5,
                 step = 0.05
               ),
-              helpText("Rate influence decays with distance.")
+              helpText("Rate influence decays with distance."),
+              hr(style = "margin-top: 20px; margin-bottom: 20px;")
             ),
             ## ---------- SIMULATION INPUTS PANEL - RIGHT COLUMN ----------
             column(
               3,
-              style = "padding-left: 5px;",
-              
+              style = "padding-left: 10px;",
               sliderInput(
                 "disclosure_pct",
                 "Disclosure Size (% of Population):",
@@ -121,7 +123,7 @@ ui <- dashboardPage(
                 step = 1
               ),
               helpText("Determines the size of agent disclosures"),
-              
+              hr(style = "margin-top: 20px; margin-bottom: 20px;"),
               selectInput(
                 "network_type",
                 "Network Type:",
@@ -177,6 +179,7 @@ ui <- dashboardPage(
                 ),
                 helpText("Number of links a new node creates when it joins the network.")
               ),
+              hr(style = "margin-top: 20px; margin-bottom: 20px;"),
               selectInput(
                 "init_type",
                 "Type Vector Initialization:",
@@ -195,6 +198,7 @@ ui <- dashboardPage(
                 ),
                 helpText("Sets the strength of correlation of traits within each group.")
               ),
+              hr(style = "margin-top: 20px; margin-bottom: 20px;"),
               selectInput(
                 "model_version",
                 "Network Version:",
@@ -202,7 +206,8 @@ ui <- dashboardPage(
               ),
               helpText(
                 "Choose whether the network remains static or evolves dynamically."
-              )
+              ),
+              hr(style = "margin-top: 20px; margin-bottom: 20px;")
             )
           )),
           ## ---------- TIME SERIES PLOT PANEL ----------
@@ -294,7 +299,6 @@ ui <- dashboardPage(
             box(
               title = "Controls",
               width = 12,
-              style = "margin-top: 0px; padding: 15px;",
               div(
                 style = "text-align: left;",
                 radioButtons(
@@ -328,10 +332,10 @@ ui <- dashboardPage(
           ## ---------- SWEEP INPUTS PANEL - MIDDLE COLUMN ----------
           column(
             3,
+            style = "padding-left: 5px;",
             box(
               title = "Sweep Parameters",
               width = 12,
-              style = "margin-top: 0px; padding: 15px;",
               div(
                 hr(style = "margin-top: 0px; margin-bottom: 20px;"),
                 h6("Number of Runs per Combination:"),
@@ -503,10 +507,10 @@ ui <- dashboardPage(
           ## ---------- SWEEP INPUTS PANEL - RIGHT COLUMN ----------
           column(
             3,
+            style = "padding-left: 10px;",
             box(
               title = "Network Parameters",
               width = 12,
-              style = "margin-top: 0px; padding: 15px;",
               div(
                 hr(style = "margin-top: 0px; margin-bottom: 20px;"),
                 checkboxGroupInput(
@@ -645,6 +649,9 @@ ui <- dashboardPage(
         tabPanel("Trends", fluidRow(
           column(
             3,
+            box(
+              title = "Trends",
+              width = 12,
             selectInput(
               "trend_x",
               "X-axis parameter:",
@@ -663,7 +670,7 @@ ui <- dashboardPage(
               "Metric group:",
               choices = list("Similarity metrics" = "similarity", "Other metrics" = "other")
             )
-          ),
+          )),
           column(
             6,
             div(
@@ -686,9 +693,9 @@ ui <- dashboardPage(
         ## ---------- COMPARISONS PANEL ----------        
         tabPanel("Comparisons", fluidRow(column(
           3,
-          div(
-            style = "padding: 15px; background-color: #f8f9fa; border-radius: 5px;",
-            h5("Measures"),
+          box(
+            title = "Comparisons",
+            width = 12,
             checkboxGroupInput(
               "violin_metrics",
               "Select measures to compare:",
