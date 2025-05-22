@@ -1,4 +1,9 @@
 @import url("https://fonts.googleapis.com/css?family=Roboto:300,400,500,700");
+
+/* Add spacing between plot titles and plots in trends and comparisons tabs */
+.js-plotly-plot .gtitle {
+  margin-bottom: 15pt !important;
+}
 /*!
  * bootswatch v3.3.7
  * Homepage: http://bootswatch.com

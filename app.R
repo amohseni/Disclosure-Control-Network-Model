@@ -191,10 +191,10 @@ ui <- dashboardPage(
         sliderInput(
           "p_er",
           "Edge Probability (p):",
-          min = 0.01,
-          max = 0.5,
-          value = 0.1,
-          step = 0.01
+          min = 0.0,
+          max = 1,
+          value = 0.5,
+          step = 0.1
         ),
         helpText("Chance that any two nodes are connected.")
       ),
@@ -416,6 +416,7 @@ ui <- dashboardPage(
               width = 12,
               style = "margin-top: 0px; padding: 15px;",
               div(
+                hr(style = "margin-top: 0px; margin-bottom: 20px;"),
                 h6("Number of Runs per Combination:"),
                 numericInput(
                   "num_runs",
@@ -423,12 +424,17 @@ ui <- dashboardPage(
                   value = 1,
                   min = 1
                 ),
+                
+                hr(style = "margin-top: 20px; margin-bottom: 20px;"),
+                
                 h6("Number of Agents (N):"),
                 fluidRow(
                   column(3, numericInput("n_min", "Min N:", 3, min = 1)),
                   column(3, numericInput("n_max", "Max N:", 7, min = 1)),
                   column(3, numericInput("n_step", "Increment:", 2, min = 1))
                 ),
+                
+                hr(style = "margin-top: 20px; margin-bottom: 20px;"),
                 
                 h6("Length of Type Vector (L):"),
                 fluidRow(
@@ -437,22 +443,41 @@ ui <- dashboardPage(
                   column(3, numericInput("l_step", "Increment:", 1, min = 1))
                 ),
                 
+                hr(style = "margin-top: 20px; margin-bottom: 20px;"),
+                
                 h6("Number of Rounds (T):"),
                 fluidRow(
                   column(3, numericInput("t_min", "Min T:", 1, min = 1)),
                   column(3, numericInput("t_max", "Max T:", 3, min = 1)),
                   column(3, numericInput("t_step", "Increment:", 2, min = 1))
-                )
-              )
-            )
-          ),
-          column(
-            4,
-            box(
-              title = "Network Parameters",
-              width = 12,
-              style = "margin-top: 0px; padding: 15px;",
-              div(
+                ),
+                
+                hr(style = "margin-top: 20px; margin-bottom: 20px;"),
+                
+                h6("Type Vector Initialization:", style = "margin-bottom: 15px;"),
+                div(style = "margin-bottom: 15px;",
+                  checkboxGroupInput(
+                    "init_type_sweep",
+                    label = NULL,
+                    choices = c("Random" = "random", "Polarized" = "polarized"),
+                    selected = "random"
+                  )
+                ),
+                
+                # Only show bias parameter controls if polarized is selected
+                conditionalPanel(
+                  condition = "input.init_type_sweep.includes('polarized')",
+                  br(),
+                  h6("Bias Parameter (b):"),
+                  fluidRow(
+                    column(3, numericInput("b_min", "Min b:", 0.7, min = 0.5, max = 0.99, step = 0.01)),
+                    column(3, numericInput("b_max", "Max b:", 0.7, min = 0.5, max = 0.99, step = 0.01)),
+                    column(3, numericInput("b_step", "Increment:", 0.1, min = 0.01, max = 0.2, step = 0.01))
+                  )
+                ),
+                
+                hr(style = "margin-top: 20px; margin-bottom: 20px;"),
+                
                 h6("Decay Factor (δ):"),
                 fluidRow(
                   column(
@@ -489,6 +514,9 @@ ui <- dashboardPage(
                     )
                   )
                 ),
+                
+                hr(style = "margin-top: 20px; margin-bottom: 20px;"),
+                
                 h6("Disclosure Size (%):"),
                 fluidRow(
                   column(
@@ -521,19 +549,75 @@ ui <- dashboardPage(
                       max   = 100
                     )
                   )
-                ),
-                hr(),
+                )
+              )
+            )
+          ),
+          column(
+            4,
+            box(
+              title = "Network Parameters",
+              width = 12,
+              style = "margin-top: 0px; padding: 15px;",
+              div(
+                hr(style = "margin-top: 0px; margin-bottom: 20px;"),
                 checkboxGroupInput(
                   "network_type_sweep",
                   "Network Type(s):",
                   choices = c("Erdős-Rényi", "Watts-Strogatz", "Barabási-Albert"),
                   selected = c("Erdős-Rényi")
                 ),
-                checkboxGroupInput(
-                  "model_version_sweep",
-                  "Network Version:",
-                  choices = c("static", "dynamic"),
-                  selected = "static"
+                
+                # Erdős-Rényi parameters
+                conditionalPanel(
+                  condition = "input.network_type_sweep.includes('Erdős-Rényi')",
+                  br(),
+                  h6("Erdős-Rényi Edge Probability (p):"),
+                  fluidRow(
+                    column(3, numericInput("p_er_min", "Min p:", 0.2, min = 0.0, max = 1, step = 0.2)),
+                    column(3, numericInput("p_er_max", "Max p:", 0.4, min = 0.0, max = 1, step = 0.2)),
+                    column(3, numericInput("p_er_step", "Increment:", 0.2, min = 0.0, max = 0.4, step = 0.2))
+                  )
+                ),
+                
+                # Watts-Strogatz parameters
+                conditionalPanel(
+                  condition = "input.network_type_sweep.includes('Watts-Strogatz')",
+                  br(),
+                  h6("Watts-Strogatz Initial Neighbors (k):"),
+                  fluidRow(
+                    column(3, numericInput("k_ws_min", "Min k:", 2, min = 2, max = 10)),
+                    column(3, numericInput("k_ws_max", "Max k:", 4, min = 2, max = 10)),
+                    column(3, numericInput("k_ws_step", "Increment:", 2, min = 1, max = 4))
+                  ),
+                  h6("Watts-Strogatz Rewiring Probability (p):"),
+                  fluidRow(
+                    column(3, numericInput("p_ws_min", "Min p:", 0.1, min = 0.01, max = 0.5, step = 0.01)),
+                    column(3, numericInput("p_ws_max", "Max p:", 0.3, min = 0.01, max = 0.5, step = 0.01)),
+                    column(3, numericInput("p_ws_step", "Increment:", 0.2, min = 0.01, max = 0.2, step = 0.01))
+                  )
+                ),
+                
+                # Barabási-Albert parameters
+                conditionalPanel(
+                  condition = "input.network_type_sweep.includes('Barabási-Albert')",
+                  br(),
+                  h6("Barabási-Albert Edges per New Node (m):"),
+                  fluidRow(
+                    column(3, numericInput("m_ba_min", "Min m:", 1, min = 1, max = 10)),
+                    column(3, numericInput("m_ba_max", "Max m:", 3, min = 1, max = 10)),
+                    column(3, numericInput("m_ba_step", "Increment:", 2, min = 1, max = 5))
+                  )
+                ),
+                
+                hr(),
+                div(style = "margin-bottom: 15px;",
+                  checkboxGroupInput(
+                    "model_version_sweep",
+                    "Network Version:",
+                    choices = c("Static" = "static", "Dynamic" = "dynamic"),
+                    selected = c("static", "dynamic")
+                  )
                 )
               )
             )
@@ -577,7 +661,7 @@ ui <- dashboardPage(
               div(
                 id = "trend_plot_container",
                 style = "display: none;",
-                plotlyOutput("trend_plotly", height = "600px")
+                plotlyOutput("trend_plotly", height = "800px")
               )
             )
           )
@@ -587,32 +671,27 @@ ui <- dashboardPage(
             3,
             div(
               style = "padding: 15px; background-color: #f8f9fa; border-radius: 5px;",
-              h4("Comparisons Settings"),
+              h5("Measures"),
               checkboxGroupInput(
                 "violin_metrics",
-                "Select outcome measures to compare:",
+                "Select measures to compare:",
                 choices = c(
-                  "final_perceived_neighbor_similarity" = "Perceived Neighbor Similarity",
-                  "final_perceived_all_similarity" = "Perceived Global Similarity",
-                  "final_perceived_similarity_gap" = "Perceived Similarity Gap",
-                  "final_objective_neighbor_similarity" = "Objective Neighbor Similarity",
-                  "final_objective_all_similarity" = "Objective Global Similarity",
-                  "final_objective_similarity_gap" = "Objective Similarity Gap",
-                  "final_revealed_neighbor_similarity" = "Revealed Neighbor Similarity",
-                  "final_revealed_all_similarity" = "Revealed Global Similarity",
-                  "final_revealed_similarity_gap" = "Revealed Similarity Gap",
-                  "final_variance" = "Variance",
-                  "final_bimodality" = "Bimodality",
-                  "final_clustering" = "Clustering Coefficient",
-                  "final_modularity" = "Modularity",
-                  "final_mean_welfare" = "Mean Welfare",
-                  "final_gini" = "Gini Coefficient"
-                ),
-                selected = c(
-                  "final_perceived_neighbor_similarity",
-                  "final_perceived_all_similarity",
-                  "final_perceived_similarity_gap"
-                )            
+                  "Perceived Neighbor Similarity" = "final_perceived_neighbor_similarity",
+                  "Perceived Global Similarity" = "final_perceived_all_similarity",
+                  "Perceived Similarity Gap" = "final_perceived_similarity_gap",
+                  "Objective Neighbor Similarity" = "final_objective_neighbor_similarity",
+                  "Objective Global Similarity" = "final_objective_all_similarity",
+                  "Objective Similarity Gap" = "final_objective_similarity_gap",
+                  "Revealed Neighbor Similarity" = "final_revealed_neighbor_similarity",
+                  "Revealed Global Similarity" = "final_revealed_all_similarity",
+                  "Revealed Similarity Gap" = "final_revealed_similarity_gap",
+                  "Variance" = "final_variance",
+                  "Bimodality" = "final_bimodality",
+                  "Clustering Coefficient" = "final_clustering",
+                  "Modularity" = "final_modularity",
+                  "Mean Welfare" = "final_mean_welfare",
+                  "Gini Coefficient" = "final_gini"
+                )
               ),
               hr(),
               helpText(HTML("<strong>Tip:</strong> Select 2-4 metrics for more readable plots"))
@@ -856,7 +935,7 @@ server <- function(input, output, session) {
   updateCheckboxGroupInput(
     session,
     "violin_metrics",
-    selected = c("final_perceived_similarity_gap", "final_objective_similarity_gap", "final_revealed_similarity_gap")
+    selected = c("final_perceived_neighbor_similarity", "final_perceived_all_similarity", "final_perceived_similarity_gap")
   )
   
   # Run simulation when button is clicked (either one)
@@ -964,6 +1043,10 @@ server <- function(input, output, session) {
   create_plot <- function() {
     req(values$processed_results)
     
+    # Set theme with increased title margin
+    theme_set(theme_minimal() + 
+              theme(plot.title = element_text(margin = margin(b = 20))))
+    
     df <- values$processed_results$time_series
     plot_type <- input$plot_type
     
@@ -1051,7 +1134,15 @@ server <- function(input, output, session) {
   
   # Plotly interactive plot
   output$time_series_plotly <- renderPlotly({
-    ggplotly(create_plot())
+    ggplotly(create_plot()) %>%
+      layout(
+        font = list(family = "Roboto"),
+        margin = list(t = 80),  # Increase top margin significantly
+        title = list(
+          y = 1,     # Position title at top
+          pad = list(t = 25, b = 25)  # Add padding above and below title
+        )
+      )
   })
   
   # Agent disclosure plot
@@ -1218,9 +1309,26 @@ server <- function(input, output, session) {
                     input$delta_max,
                     by = input$delta_step)
     
+    # Type initialization - handle both random and polarized
+    init_type_seq <- input$init_type_sweep
+    
+    # Bias parameter for polarized initialization (only used if "polarized" is selected)
+    b_seq <- NULL
+    if ("polarized" %in% init_type_seq) {
+      b_seq <- seq(input$b_min, input$b_max, by = input$b_step)
+      add_log(paste("Bias values:", paste(b_seq, collapse=", ")))
+    } else {
+      # If only random, we still need a value for b in the grid
+      b_seq <- 0.7 # Default value, won't be used
+    }
+    
     # Add debugging info
     add_log(paste("Disclosure percentages:", paste(disc_seq, collapse=", ")))
     add_log(paste("Delta values:", paste(delta_seq, collapse=", ")))
+    add_log(paste("Initialization types:", paste(init_type_seq, collapse=", ")))
+    
+    # Network-specific parameters
+    # For each network type, we'll add its specific parameters if that type is selected
     
     # Snapshot inputs
     num_runs_local    <- input$num_runs
@@ -1232,8 +1340,14 @@ server <- function(input, output, session) {
       delta           = delta_seq,
       network_type    = net_map[input$network_type_sweep],
       model_version   = input$model_version_sweep,
-      disclosure_pct  = disc_seq
+      disclosure_pct  = disc_seq,
+      init_type       = init_type_seq
     )
+    
+    # Add b parameter only if polarized is selected
+    if ("polarized" %in% init_type_seq) {
+      param_grid_local$b <- b_seq
+    }
     
     # Build and replicate parameter combinations
     combos <- expand.grid(param_grid_local, stringsAsFactors = FALSE)
@@ -1354,39 +1468,93 @@ server <- function(input, output, session) {
       updateNumericInput(session, "disclosure_pct_max",  value = 100)
       updateNumericInput(session, "disclosure_pct_step", value = 50)
       
+      # Update network types
       updateCheckboxGroupInput(session, "network_type_sweep",
                                selected = "Erdős-Rényi")
+      
+      # Include both static and dynamic networks
       updateCheckboxGroupInput(session, "model_version_sweep",
-                               selected = "static")
+                               selected = c("static", "dynamic"))
+      
+      # Network type specific parameters - Minimal test
+      updateNumericInput(session, "p_er_min", value = 0.1)
+      updateNumericInput(session, "p_er_max", value = 0.3)
+      updateNumericInput(session, "p_er_step", value = 0.2)
+      
+      updateNumericInput(session, "k_ws_min", value = 2)
+      updateNumericInput(session, "k_ws_max", value = 4)
+      updateNumericInput(session, "k_ws_step", value = 2)
+      
+      updateNumericInput(session, "p_ws_min", value = 0.1)
+      updateNumericInput(session, "p_ws_max", value = 0.3)
+      updateNumericInput(session, "p_ws_step", value = 0.2)
+      
+      updateNumericInput(session, "m_ba_min", value = 1)
+      updateNumericInput(session, "m_ba_max", value = 3)
+      updateNumericInput(session, "m_ba_step", value = 2)
+      
+      # Type initialization
+      updateCheckboxGroupInput(session, "init_type_sweep",
+                               selected = "random")
+      updateNumericInput(session, "b_min", value = 0.7)
+      updateNumericInput(session, "b_max", value = 0.7)
+      updateNumericInput(session, "b_step", value = 0.1)
       
     } else if (input$sweep_preset == "Full Test") {
       ## ---- FULL -----------------------------------------------------
-      updateNumericInput(session, "num_runs", value = 1000)
+      updateNumericInput(session, "num_runs", value = 20) # Reduced from 1000 for practicality
       
       updateNumericInput(session, "n_min",  value = 10)
       updateNumericInput(session, "n_max",  value = 100)
-      updateNumericInput(session, "n_step", value = 10)
+      updateNumericInput(session, "n_step", value = 30)
       
       updateNumericInput(session, "l_min",  value = 1)
       updateNumericInput(session, "l_max",  value = 10)
-      updateNumericInput(session, "l_step", value = 1)
+      updateNumericInput(session, "l_step", value = 3)
       
       updateNumericInput(session, "t_min",  value = 10)
       updateNumericInput(session, "t_max",  value = 100)
-      updateNumericInput(session, "t_step", value = 10)
+      updateNumericInput(session, "t_step", value = 30)
       
       updateNumericInput(session, "delta_min",  value = 0.0)
       updateNumericInput(session, "delta_max",  value = 1.0)
-      updateNumericInput(session, "delta_step", value = 0.2)
+      updateNumericInput(session, "delta_step", value = 0.25)
       
       updateNumericInput(session, "disclosure_pct_min",  value = 0)
       updateNumericInput(session, "disclosure_pct_max",  value = 100)
-      updateNumericInput(session, "disclosure_pct_step", value = 10)
+      updateNumericInput(session, "disclosure_pct_step", value = 25)
       
+      # Update all network types
       updateCheckboxGroupInput(session, "network_type_sweep",
                                selected = c("Erdős-Rényi", "Watts-Strogatz", "Barabási-Albert"))
+      
+      # Include both static and dynamic networks
       updateCheckboxGroupInput(session, "model_version_sweep",
                                selected = c("static", "dynamic"))
+      
+      # Network type specific parameters - Full test
+      updateNumericInput(session, "p_er_min", value = 0.05)
+      updateNumericInput(session, "p_er_max", value = 0.45)
+      updateNumericInput(session, "p_er_step", value = 0.1)
+      
+      updateNumericInput(session, "k_ws_min", value = 2)
+      updateNumericInput(session, "k_ws_max", value = 8)
+      updateNumericInput(session, "k_ws_step", value = 2)
+      
+      updateNumericInput(session, "p_ws_min", value = 0.05)
+      updateNumericInput(session, "p_ws_max", value = 0.45)
+      updateNumericInput(session, "p_ws_step", value = 0.1)
+      
+      updateNumericInput(session, "m_ba_min", value = 1)
+      updateNumericInput(session, "m_ba_max", value = 5)
+      updateNumericInput(session, "m_ba_step", value = 1)
+      
+      # Type initialization
+      updateCheckboxGroupInput(session, "init_type_sweep",
+                               selected = c("random", "polarized"))
+      updateNumericInput(session, "b_min", value = 0.5)
+      updateNumericInput(session, "b_max", value = 0.9)
+      updateNumericInput(session, "b_step", value = 0.1)
       
     } else {
       ## ---- CUSTOM (restore your original defaults) -----------------
@@ -1412,10 +1580,37 @@ server <- function(input, output, session) {
       updateNumericInput(session, "disclosure_pct_max",  value = 100)
       updateNumericInput(session, "disclosure_pct_step", value = 50)
       
+      # Update network types
       updateCheckboxGroupInput(session, "network_type_sweep",
-                               selected = "Erdős-Rényi")
+                               selected = c("Erdős-Rényi"))
+      
+      # Include both static and dynamic networks
       updateCheckboxGroupInput(session, "model_version_sweep",
-                               selected = "static")
+                               selected = c("static", "dynamic"))
+      
+      # Network type specific parameters - Custom defaults
+      updateNumericInput(session, "p_er_min", value = 0.1)
+      updateNumericInput(session, "p_er_max", value = 0.4)
+      updateNumericInput(session, "p_er_step", value = 0.1)
+      
+      updateNumericInput(session, "k_ws_min", value = 2)
+      updateNumericInput(session, "k_ws_max", value = 6)
+      updateNumericInput(session, "k_ws_step", value = 2)
+      
+      updateNumericInput(session, "p_ws_min", value = 0.1)
+      updateNumericInput(session, "p_ws_max", value = 0.4)
+      updateNumericInput(session, "p_ws_step", value = 0.1)
+      
+      updateNumericInput(session, "m_ba_min", value = 1)
+      updateNumericInput(session, "m_ba_max", value = 4)
+      updateNumericInput(session, "m_ba_step", value = 1)
+      
+      # Type initialization
+      updateCheckboxGroupInput(session, "init_type_sweep",
+                               selected = "random")
+      updateNumericInput(session, "b_min", value = 0.7)
+      updateNumericInput(session, "b_max", value = 0.7)
+      updateNumericInput(session, "b_step", value = 0.1)
     }
   })
   
@@ -1423,6 +1618,15 @@ server <- function(input, output, session) {
   # Violin plot visualization
   output$violin_plotly <- renderPlotly({
     req(values$sweep_results, input$violin_metrics)
+    
+    # Set theme with increased title margin
+    theme_set(theme_minimal() + 
+              theme(plot.title = element_text(margin = margin(b = 20))))
+    
+    # More detailed debug info about the sweep results
+    print("DEBUG: Sweep results structure")
+    print(str(values$sweep_results))
+    print(paste("Sweep results has", nrow(values$sweep_results), "rows and", ncol(values$sweep_results), "columns"))
     
     # Skip if no metrics selected
     if (length(input$violin_metrics) == 0) {
@@ -1457,24 +1661,41 @@ server <- function(input, output, session) {
     # Add debugging to inspect data
     print("Sweep results column names:")
     print(colnames(values$sweep_results))
-    print("Selected metrics:")
+    print("Selected metrics (values):")
     print(input$violin_metrics)
+    print("Selected metrics (names):")
+    print(names(input$violin_metrics))
+    
+    # The issue is that in the violin_metrics checkbox, the names and values are SWAPPED!
+    # The value is the friendly name, but the name is the column name we need
+    
+    # Use the names of the input$violin_metrics, not the values
+    selected_cols <- names(input$violin_metrics)
+    print("Using these column names for selection:")
+    print(selected_cols)
+    
+    # Handle case where names may be NULL (which can happen when using the values directly)
+    if (is.null(selected_cols) || length(selected_cols) == 0) {
+      # This means we need to use the values directly
+      selected_cols <- input$violin_metrics
+      print("No names found, using values directly")
+    }
     
     # Filter and reshape data for plotting
     # First verify if all selected metrics exist in the data
-    missing_metrics <- setdiff(input$violin_metrics, colnames(values$sweep_results))
+    missing_metrics <- setdiff(selected_cols, colnames(values$sweep_results))
     if (length(missing_metrics) > 0) {
       print(paste("WARNING: Missing metrics in data:", paste(missing_metrics, collapse=", ")))
       # Use only metrics that exist in the data
-      available_metrics <- intersect(input$violin_metrics, colnames(values$sweep_results))
+      available_metrics <- intersect(selected_cols, colnames(values$sweep_results))
       if (length(available_metrics) == 0) {
         # Return empty plot if no valid metrics
         return(ggplotly(ggplot() + 
-          annotate("text", x = 0.5, y = 0.5, label = "No valid metrics selected") +
+          annotate("text", x = 0.5, y = 0.5, label = "No valid metrics found in data. Check column names.") +
           theme_void()))
       }
     } else {
-      available_metrics <- input$violin_metrics
+      available_metrics <- selected_cols
     }
     
     plot_data <- values$sweep_results %>%
@@ -1500,10 +1721,11 @@ server <- function(input, output, session) {
         model_version_label = factor(model_labels[model_version], levels = model_labels)
       )
     
-    # Define a consistent color palette for network types
+    # Define a consistent color palette for network types - matching the trends plot colors
+    # Using the same hues as in the trends plot (blues for perceived, reds for revealed)
     network_colors <- c(
-      "Static Network" = "#4E79A7",  # Blue
-      "Dynamic Network" = "#F28E2B"  # Orange
+      "Static Network" = "#0077BB",  # Darker blue - same as "Revealed Neighbor Similarity"
+      "Dynamic Network" = "#CC3311"  # Darker red - same as "Perceived Neighbor Similarity"
     )
     
     # Print data for debugging
@@ -1514,7 +1736,8 @@ server <- function(input, output, session) {
     if (nrow(plot_data) == 0) {
       return(ggplotly(ggplot() + 
         annotate("text", x = 0.5, y = 0.5, label = "No data available for selected metrics") +
-        theme_void()))
+        theme_void()) %>%
+        layout(font = list(family = "Roboto")))
     }
     
     # Check if model_version_label is missing or has invalid values
@@ -1522,7 +1745,7 @@ server <- function(input, output, session) {
       # If model_version is missing, create a simplified plot without it
       p <- ggplot(plot_data, aes(x = 1, y = value)) +
         geom_violin(alpha = 0.7, trim = FALSE, fill = "#4E79A7") +
-        geom_boxplot(width = 0.1, fill = "white", alpha = 0.5) +
+        geom_boxplot(width = 0.1, fill = "white", alpha = 0.5, position = position_identity()) +
         facet_wrap(~ metric_label, scales = "free_y", ncol = 1) +
         labs(
           x = NULL,
@@ -1536,13 +1759,14 @@ server <- function(input, output, session) {
           axis.text.x = element_blank(), # Hide x-axis labels
           axis.ticks.x = element_blank(), # Hide x-axis ticks
           panel.spacing = unit(1.5, "lines"),
-          plot.title = element_text(hjust = 0.5)
+          plot.title = element_text(hjust = 0.5, family = "Roboto")
         )
     } else {
-      # Normal plot with network type
+      # Normal plot with network type - fixed boxplot positioning
       p <- ggplot(plot_data, aes(x = model_version_label, y = value, fill = model_version_label)) +
         geom_violin(alpha = 0.7, trim = FALSE) +
-        geom_boxplot(width = 0.1, fill = "white", alpha = 0.5) +
+        # Use position = "identity" to center boxplots within violins
+        geom_boxplot(width = 0.1, fill = "white", alpha = 0.5, position = position_identity()) +
         facet_wrap(~ metric_label, scales = "free_y", ncol = 1) +
         scale_fill_manual(values = network_colors) +
         labs(
@@ -1557,7 +1781,7 @@ server <- function(input, output, session) {
           strip.text = element_text(face = "bold", size = 12),
           legend.position = "top",
           panel.spacing = unit(1.5, "lines"),
-          plot.title = element_text(hjust = 0.5)
+          plot.title = element_text(hjust = 0.5, family = "Roboto")
         )
     }
     
@@ -1565,13 +1789,23 @@ server <- function(input, output, session) {
     result <- tryCatch({
       # Convert to plotly for interactivity, using simple tooltips to avoid errors
       ggplotly(p, tooltip = "y") %>% 
-        layout(boxmode = "group", height = 250 * length(available_metrics))
+        layout(
+          boxmode = "group", 
+          height = 250 * length(available_metrics),
+          font = list(family = "Roboto"),
+          margin = list(t = 80),  # Increase top margin significantly
+          title = list(
+            y = 1,     # Position title at top
+            pad = list(t = 25, b = 25)  # Add padding above and below title
+          )
+        )
     }, error = function(e) {
       # If there's an error, return a simple error message plot
       print(paste("Error in ggplotly conversion:", e$message))
       ggplotly(ggplot() + 
         annotate("text", x = 0.5, y = 0.5, label = paste("Error creating plot:", e$message)) +
-        theme_void())
+        theme_void()) %>%
+        layout(font = list(family = "Roboto"))
     })
     
     return(result)
@@ -1604,17 +1838,28 @@ server <- function(input, output, session) {
     req(values$sweep_results,
         input$trend_group)
     
-    similarity_metrics <- c(
+    # Set theme with increased title margin
+    theme_set(theme_minimal() + 
+              theme(plot.title = element_text(margin = margin(b = 20))))
+    
+    # Separate normal metrics from gap metrics
+    normal_metrics <- c(
       "final_perceived_neighbor_similarity",
       "final_perceived_all_similarity",
-      "final_perceived_similarity_gap",
       "final_objective_neighbor_similarity",
       "final_objective_all_similarity",
-      "final_objective_similarity_gap",
       "final_revealed_neighbor_similarity",
-      "final_revealed_all_similarity",
+      "final_revealed_all_similarity"
+    )
+    
+    gap_metrics <- c(
+      "final_perceived_similarity_gap",
+      "final_objective_similarity_gap",
       "final_revealed_similarity_gap"
     )
+    
+    # Combined for backwards compatibility
+    similarity_metrics <- c(normal_metrics, gap_metrics)
     
     # Get x-axis parameter information from inputs
     x_param <- input$trend_x
@@ -1878,7 +2123,8 @@ server <- function(input, output, session) {
       p <- ggplot() + 
         annotate("text", x = 0.5, y = 0.5, 
                  label = paste("No data available for", x_axis_label)) +
-        theme_void()
+        theme_void() +
+        theme(text = element_text(family = "Roboto"))
     } else if (length(unique(summary_df$model_version)) == 0) {
       # Handle case where there's no model_version to facet by
       p <- ggplot(summary_df, aes(x = x, y = mean, colour = metric_label, linetype = metric_label)) +
@@ -1895,12 +2141,17 @@ server <- function(input, output, session) {
         theme(
           legend.position = "bottom",
           legend.title = element_blank(),
-          legend.text = element_text(size = 9),
+          legend.text = element_text(size = 9, family = "Roboto"),
           panel.grid.minor = element_line(color = "#F8F8F8"),
-          panel.grid.major = element_line(color = "#E5E5E5")
+          panel.grid.major = element_line(color = "#E5E5E5"),
+          plot.title = element_text(family = "Roboto")
         )
     } else {
-      # Normal case with faceting
+      # Normal case with faceting - Order the facets to have static first, then dynamic
+      # Reorder model_version to ensure static comes first
+      summary_df$model_version <- factor(summary_df$model_version, 
+                                         levels = c("static", "dynamic"))
+      
       p <- ggplot(summary_df, aes(x = x, y = mean, colour = metric_label, linetype = metric_label)) +
         geom_line(linewidth = 1.8) +
         facet_wrap(~ model_version, scales = "free_y", labeller = labeller(model_version = model_labels)) +
@@ -1916,15 +2167,245 @@ server <- function(input, output, session) {
         theme(
           legend.position = "bottom",
           legend.title = element_blank(),
-          legend.text = element_text(size = 9),
+          legend.text = element_text(size = 9, family = "Roboto"),
           strip.background = element_rect(fill = "#EBF5FB", color = NA),
-          strip.text = element_text(face = "bold"),
+          strip.text = element_text(face = "bold", family = "Roboto"),
           panel.grid.minor = element_line(color = "#F8F8F8"),
-          panel.grid.major = element_line(color = "#E5E5E5")
+          panel.grid.major = element_line(color = "#E5E5E5"),
+          plot.title = element_text(family = "Roboto")
         )
     }
     
-    ggplotly(p, tooltip = c("x", "metric_label", "mean"))
+    # Create separate plots for regular metrics and gap metrics
+    if (input$trend_group == "similarity") {
+      # Filter metrics
+      regular_metrics <- intersect(normal_metrics, unique(summary_df$metric))
+      gap_metrics_present <- intersect(gap_metrics, unique(summary_df$metric))
+      
+      # Check if we have any metrics to plot
+      if (length(regular_metrics) == 0 && length(gap_metrics_present) == 0) {
+        # Fallback if no metrics
+        return(ggplotly(ggplot() + 
+                 annotate("text", x = 0.5, y = 0.5, 
+                         label = "No data available to plot") +
+                 theme_void() +
+                 theme(text = element_text(family = "Roboto"))) %>%
+          layout(font = list(family = "Roboto")))
+      }
+      
+      # Create four separate plots with fixed layout
+      plots <- list()
+      
+      # Check if we have two model versions (static and dynamic)
+      model_versions <- unique(summary_df$model_version)
+      has_two_versions <- length(model_versions) == 2
+      
+      # Determine which model versions we'll use
+      if (has_two_versions) {
+        versions_to_use <- model_versions
+      } else if (length(model_versions) > 0) {
+        # Just use the one available version
+        versions_to_use <- model_versions
+      } else {
+        # Fallback if no model versions
+        return(ggplotly(ggplot() + 
+                 annotate("text", x = 0.5, y = 0.5, 
+                         label = "No model version data available") +
+                 theme_void() +
+                 theme(text = element_text(family = "Roboto"))) %>%
+          layout(font = list(family = "Roboto")))
+      }
+      
+      # Iterate through available model versions
+      for (version in versions_to_use) {
+        # 1. Regular metrics plot for this version
+        if (length(regular_metrics) > 0) {
+          # Filter data for this version and regular metrics only
+          version_regular_df <- summary_df %>% 
+            filter(model_version == version & metric %in% regular_metrics)
+          
+          if (nrow(version_regular_df) > 0) {
+            # Create the regular metrics plot for this version
+            p_regular <- ggplot(version_regular_df, 
+                             aes(x = x, y = mean, colour = metric_label, linetype = metric_label)) +
+              geom_line(linewidth = 1.8) +
+              scale_x_continuous(breaks = x_breaks) +
+              scale_color_manual(values = metric_colors, name = "Metrics") +
+              scale_linetype_manual(values = line_types, name = "Metrics") +
+              labs(
+                x = x_axis_label, 
+                y = "Mean Value", 
+                title = paste(model_labels[version], "- Regular Metrics"),
+                subtitle = "Neighbor & Global Similarity Measures"
+              ) +
+              theme_minimal() +
+              theme(
+                legend.position = "bottom",
+                legend.title = element_blank(),
+                legend.text = element_text(size = 9, family = "Roboto"),
+                strip.background = element_rect(fill = "#EBF5FB", color = NA),
+                strip.text = element_text(face = "bold", family = "Roboto"),
+                panel.grid.minor = element_line(color = "#F8F8F8"),
+                panel.grid.major = element_line(color = "#E5E5E5"),
+                plot.title = element_text(family = "Roboto")
+              )
+            
+            plots[[paste0("regular_", version)]] <- ggplotly(p_regular, tooltip = c("x", "metric_label", "mean")) %>%
+              layout(
+                font = list(family = "Roboto"),
+                margin = list(t = 80),
+                title = list(
+                  y = 1,
+                  pad = list(t = 25, b = 25)
+                )
+              )
+          }
+        }
+        
+        # 2. Gap metrics plot for this version
+        if (length(gap_metrics_present) > 0) {
+          # Filter data for this version and gap metrics only
+          version_gap_df <- summary_df %>% 
+            filter(model_version == version & metric %in% gap_metrics_present)
+          
+          if (nrow(version_gap_df) > 0) {
+            # Create the gap metrics plot for this version
+            p_gap <- ggplot(version_gap_df, 
+                          aes(x = x, y = mean, colour = metric_label, linetype = metric_label)) +
+              geom_line(linewidth = 1.8) +
+              scale_x_continuous(breaks = x_breaks) +
+              scale_color_manual(values = metric_colors, name = "Metrics") +
+              scale_linetype_manual(values = line_types, name = "Metrics") +
+              labs(
+                x = x_axis_label, 
+                y = "Mean Value", 
+                title = paste(model_labels[version], "- Gap Metrics"),
+                subtitle = "Similarity Gap Measures"
+              ) +
+              theme_minimal() +
+              theme(
+                legend.position = "bottom",
+                legend.title = element_blank(),
+                legend.text = element_text(size = 9, family = "Roboto"),
+                strip.background = element_rect(fill = "#EBF5FB", color = NA),
+                strip.text = element_text(face = "bold", family = "Roboto"),
+                panel.grid.minor = element_line(color = "#F8F8F8"),
+                panel.grid.major = element_line(color = "#E5E5E5"),
+                plot.title = element_text(family = "Roboto")
+              )
+            
+            plots[[paste0("gap_", version)]] <- ggplotly(p_gap, tooltip = c("x", "metric_label", "mean")) %>%
+              layout(
+                font = list(family = "Roboto"),
+                margin = list(t = 80),
+                title = list(
+                  y = 1,
+                  pad = list(t = 25, b = 25)
+                )
+              )
+          }
+        }
+      }
+      
+      # Now arrange the plots in a 2x2 grid (or appropriate size if we don't have all 4)
+      if (length(plots) > 0) {
+        if (has_two_versions) {
+          # We have two versions (static and dynamic), so arrange in a specific order
+          # Define the desired order of plots
+          static_version <- versions_to_use[1]  # Assuming first is static
+          dynamic_version <- versions_to_use[2] # Assuming second is dynamic
+          
+          # Create the 2x2 layout in the correct order
+          top_row <- list()
+          bottom_row <- list()
+          
+          # Add regular metrics plots to top row
+          if (!is.null(plots[[paste0("regular_", static_version)]])) {
+            top_row[[1]] <- plots[[paste0("regular_", static_version)]]
+          }
+          if (!is.null(plots[[paste0("regular_", dynamic_version)]])) {
+            top_row[[2]] <- plots[[paste0("regular_", dynamic_version)]]
+          }
+          
+          # Add gap metrics plots to bottom row
+          if (!is.null(plots[[paste0("gap_", static_version)]])) {
+            bottom_row[[1]] <- plots[[paste0("gap_", static_version)]]
+          }
+          if (!is.null(plots[[paste0("gap_", dynamic_version)]])) {
+            bottom_row[[2]] <- plots[[paste0("gap_", dynamic_version)]]
+          }
+          
+          # Combine rows into a 2x2 grid
+          if (length(top_row) > 0 && length(bottom_row) > 0) {
+            # We have both rows
+            subplot(
+              c(top_row, bottom_row),
+              nrows = 2, 
+              shareX = TRUE,
+              titleX = TRUE,
+              titleY = TRUE,
+              margin = 0.05
+            )
+          } else if (length(top_row) > 0) {
+            # Only have top row
+            subplot(
+              top_row, 
+              nrows = 1,
+              shareX = TRUE,
+              titleX = TRUE,
+              titleY = TRUE,
+              margin = 0.05
+            )
+          } else if (length(bottom_row) > 0) {
+            # Only have bottom row
+            subplot(
+              bottom_row, 
+              nrows = 1,
+              shareX = TRUE,
+              titleX = TRUE,
+              titleY = TRUE,
+              margin = 0.05
+            )
+          }
+        } else {
+          # Just one version, arrange plots vertically
+          plot_list <- list()
+          if (!is.null(plots[[paste0("regular_", versions_to_use[1])]])) {
+            plot_list[[1]] <- plots[[paste0("regular_", versions_to_use[1])]]
+          }
+          if (!is.null(plots[[paste0("gap_", versions_to_use[1])]])) {
+            plot_list[[length(plot_list) + 1]] <- plots[[paste0("gap_", versions_to_use[1])]]
+          }
+          
+          subplot(
+            plot_list,
+            nrows = length(plot_list),
+            shareX = TRUE,
+            titleY = TRUE,
+            heights = rep(1/length(plot_list), length(plot_list))
+          )
+        }
+      } else {
+        # No plots created, return empty plot with message
+        ggplotly(ggplot() + 
+                 annotate("text", x = 0.5, y = 0.5, 
+                         label = "No data available to plot") +
+                 theme_void() +
+                 theme(text = element_text(family = "Roboto"))) %>%
+          layout(font = list(family = "Roboto"))
+      }
+    } else {
+      # For other metrics, just use the original plot
+      ggplotly(p, tooltip = c("x", "metric_label", "mean")) %>%
+        layout(
+          font = list(family = "Roboto"),
+          margin = list(t = 80),
+          title = list(
+            y = 1,
+            pad = list(t = 25, b = 25)
+          )
+        )
+    }
   })
   
   # Download handlers
