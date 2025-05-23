@@ -35,14 +35,6 @@ ui <- dashboardPage(
   dashboardBody(
     shinyjs::useShinyjs(),
     includeCSS("www/style.css"),
-    # Add custom JS for direct progress bar updates
-    tags$script(HTML("
-      Shiny.addCustomMessageHandler('update_progress', function(message) {
-        var id = message.id;
-        var value = message.value;
-        Shiny.setProgressBar(document.getElementById(id), value / 100);
-      });
-    ")),
     tabItems(
       tabItem(
         ## ---------- SIMULATION PAGE ----------
@@ -66,13 +58,6 @@ ui <- dashboardPage(
               br(),
               downloadButton("download_results", "Download Results", style = "width: 80%; box-sizing: border-box; margin: auto; display: block;"),
               br(),
-              div(style = "margin-top: 10px;", h6("Simulation Progress")),
-              shinydashboard::box(
-                width = NULL, 
-                solidHeader = FALSE, 
-                style = "padding: 0px;",
-                shiny::progressBar("sim_progress", value = 0, display_pct = TRUE, size = "xs", color = "light-blue", striped = TRUE)
-              ),
               div(style = "margin-top: 20px;", h6("Status Log")),
               div(style = "height: 275px; overflow: auto; padding-top: 10px", verbatimTextOutput("status_log_sim"))
             ),
@@ -116,12 +101,7 @@ ui <- dashboardPage(
                 step = 0.05
               ),
               helpText("Rate influence decays with distance."),
-              hr(style = "margin-top: 20px; margin-bottom: 20px;")
-            ),
-            ## ---------- SIMULATION INPUTS PANEL - RIGHT COLUMN ----------
-            column(
-              3,
-              style = "padding-left: 10px;",
+              hr(style = "margin-top: 20px; margin-bottom: 20px;"),
               sliderInput(
                 "disclosure_pct",
                 "Disclosure Size (% of Population):",
@@ -131,7 +111,12 @@ ui <- dashboardPage(
                 step = 1
               ),
               helpText("Determines the size of agent disclosures"),
-              hr(style = "margin-top: 20px; margin-bottom: 20px;"),
+              hr(style = "margin-top: 20px; margin-bottom: 20px;")
+            ),
+            ## ---------- SIMULATION INPUTS PANEL - RIGHT COLUMN ----------
+            column(
+              3,
+              style = "padding-left: 10px;",
               selectInput(
                 "network_type",
                 "Network Type:",

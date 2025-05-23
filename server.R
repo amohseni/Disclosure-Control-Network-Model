@@ -49,6 +49,7 @@ server <- function(input, output, session) {
     }
   }
   
+  
   # Helper function to get initial k parameter for WS model
   get_k_param <- function() {
     if (input$network_type == "WS") {
@@ -230,87 +231,35 @@ server <- function(input, output, session) {
     params <- get_params()
     print(params)
     
-    # Initialize progress bar
-    updateProgressBar(session, "sim_progress", value = 0)
-    
-    # Set up progress handler that will update the UI
-    progress_handler <- function(value) {
-      session$sendCustomMessage("update_progress", list(id = "sim_progress", value = value))
-    }
-    
-    # Run simulation in a separate R process to avoid blocking the UI
-    future::plan(future::multisession)
-    
-    future_promise <- future::future({
-      # Run simulation with progress reporting
-      # Note: We can't directly update the UI from within the future, so we'll use a custom
-      # solution to pass progress updates back to the main process
+    # Run simulation with a progress bar
+    withProgress(message = "Running simulation...", value = 0, {
+      # Run simulation in a separate R process to avoid blocking the UI
+      future::plan(future::multisession)
       
-      # Create a temporary file to store progress
-      progress_file <- tempfile(fileext = ".txt")
-      file.create(progress_file)
+      future_promise <- future::future({
+        # Run simulation
+        sim_results <- run_simulation(params)
+        processed_results <- process_simulation_results(sim_results)
+        
+        # Return both raw and processed results
+        list(sim_results = sim_results, processed_results = processed_results)
+      }, seed = TRUE) # Set RNG seed
       
-      # Define a callback that writes progress to a file
-      progress_callback <- function(value) {
-        write(as.character(value), progress_file)
-      }
-      
-      # Run simulation with progress tracking
-      sim_results <- run_simulation(params, progress_callback)
-      processed_results <- process_simulation_results(sim_results)
-      
-      # Return both raw and processed results, plus path to progress file
-      list(
-        sim_results = sim_results, 
-        processed_results = processed_results,
-        progress_file = progress_file
-      )
-    }, seed = TRUE) # Set RNG seed
-    
-    # Set up observer to periodically check progress file
-    progress_observer <- observe({
-      invalidateLater(100, session) # Check progress every 100ms
-      
-      # Get the path to the progress file from the future's value if available
-      progress_file <- NULL
-      if (future::resolved(future_promise)) {
-        tryCatch({
-          # Try to get the result if it's available
-          result <- future::value(future_promise)
-          if (!is.null(result$progress_file)) {
-            progress_file <- result$progress_file
-          }
-        }, error = function(e) {
-          # If error, just continue - the future might not be resolved yet
-        })
-      } else {
-        # Future is not resolved, try to find the progress file in a conventional place
-        # This is a backup approach and might not work in all environments
-        temp_dir <- tempdir()
-        potential_files <- list.files(temp_dir, pattern = "\\.txt$", full.names = TRUE)
-        if (length(potential_files) > 0) {
-          # Use the most recently modified file
-          progress_file <- potential_files[which.max(file.mtime(potential_files))]
+      # Set up observer to periodically check if the future is done
+      progress_observer <- observe({
+        invalidateLater(100, session) # Check progress every 100ms
+        
+        # If the future is resolved, we're done
+        if (future::resolved(future_promise)) {
+          progress_observer$destroy()
+          # Set progress to 100% when done
+          setProgress(1, detail = "Finalizing results...")
+        } else {
+          # While the simulation is running, we can't get true progress
+          # So we'll pulse the progress bar instead
+          setProgress(value = NULL, message = "Running simulation...", detail = paste("Round", params$T))
         }
-      }
-      
-      # If we have a progress file, read the latest progress value
-      if (!is.null(progress_file) && file.exists(progress_file)) {
-        tryCatch({
-          progress_value <- as.numeric(readLines(progress_file, n = 1))
-          if (!is.na(progress_value)) {
-            updateProgressBar(session, "sim_progress", value = progress_value)
-          }
-        }, error = function(e) {
-          # If error reading file, just continue
-        })
-      }
-      
-      # Stop observing once the future is resolved
-      if (future::resolved(future_promise)) {
-        progress_observer$destroy()
-        updateProgressBar(session, "sim_progress", value = 100) # Ensure 100% at completion
-      }
+      })
     })
     
     # Handle the promise when it completes
@@ -392,14 +341,10 @@ server <- function(input, output, session) {
         )
         
         add_log("Simulation completed successfully!")
-        # Set progress to 100% for completion
-        updateProgressBar(session, "sim_progress", value = 100)
         values$is_running <- FALSE
       },
       onRejected = function(error) {
         add_log(paste("Error in simulation:", error$message))
-        # Reset progress bar on error
-        updateProgressBar(session, "sim_progress", value = 0)
         values$is_running <- FALSE
       }
     )
@@ -725,15 +670,6 @@ server <- function(input, output, session) {
       # If only random, we still need a value for b in the grid
       b_seq <- 0.7 # Default value, won't be used
     }
-    
-    # Add debugging info
-    add_log(paste("Disclosure percentages:", paste(disc_seq, collapse =
-                                                     ", ")))
-    add_log(paste("Delta values:", paste(delta_seq, collapse = ", ")))
-    add_log(paste(
-      "Initialization types:",
-      paste(init_type_seq, collapse = ", ")
-    ))
     
     # Network-specific parameters
     # For each network type, we'll add its specific parameters if that type is selected
